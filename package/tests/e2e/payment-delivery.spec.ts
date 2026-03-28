@@ -18,7 +18,15 @@ const TD = {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-const expected = {
+type Expected = {
+  order1: { revenue: number; cost: number };
+  order2: { revenue: number; cost: number; deliveryFee: number };
+  totals: { revenue: number; cost: number; profit: number };
+  codReceivable: number;
+  codOrderCount: number;
+};
+
+const expected: Expected = {
   order1: {
     revenue: TD.order1.qty * TD.variant.sellPrice,
     cost: TD.order1.qty * TD.variant.costPrice,
@@ -28,14 +36,17 @@ const expected = {
     cost: TD.order2.qty * TD.variant.costPrice,
     deliveryFee: TD.order2.deliveryFee,
   },
+  totals: {
+    revenue: TD.order1.qty * TD.variant.sellPrice + TD.order2.qty * TD.variant.sellPrice,
+    cost: TD.order1.qty * TD.variant.costPrice + TD.order2.qty * TD.variant.costPrice,
+    profit: round2(
+      (TD.order1.qty * TD.variant.sellPrice - TD.order1.qty * TD.variant.costPrice) +
+      (TD.order2.qty * TD.variant.sellPrice - TD.order2.qty * TD.variant.costPrice)
+    ),
+  },
+  codReceivable: TD.order1.qty * TD.variant.sellPrice,
+  codOrderCount: 1,
 };
-expected.totals = {
-  revenue: expected.order1.revenue + expected.order2.revenue,
-  cost: expected.order1.cost + expected.order2.cost,
-  profit: round2(expected.order1.revenue - expected.order1.cost + expected.order2.revenue - expected.order2.cost),
-};
-expected.codReceivable = expected.order1.revenue;
-expected.codOrderCount = 1;
 
 type FinanceSnapshot = {
   totalRevenue: number;
@@ -332,20 +343,22 @@ test.describe.serial('Payment & Delivery Flow', () => {
     await expect(bankRow.locator('td').nth(8).getByText('Bank')).toBeVisible();
     await expect(bankRow.locator('td').nth(8).getByText(`+Rs.${TD.order2.deliveryFee.toFixed(2)} delivery`)).toBeVisible();
 
-    await page.getByRole('combobox', { name: 'Payment: All' }).click();
-    await page.getByRole('option', { name: 'COD' }).click();
+    const paymentFilter = page.getByRole('combobox').filter({ hasText: /^Payment:/ }).first();
+
+    await paymentFilter.click();
+    await page.getByRole('option', { name: 'COD', exact: true }).click();
     await waitForOrdersFetch(page, 'COD');
     await expect(page.locator('tbody tr', { hasText: order2Ref })).toHaveCount(0);
     await expect(page.locator('tbody tr', { hasText: order1Ref })).toHaveCount(1);
 
-    await page.getByRole('combobox', { name: 'Payment: COD' }).click();
-    await page.getByRole('option', { name: 'Bank Transfer' }).click();
+    await paymentFilter.click();
+    await page.getByRole('option', { name: 'Bank Transfer', exact: true }).click();
     await waitForOrdersFetch(page, 'BankTransfer');
     await expect(page.locator('tbody tr', { hasText: order1Ref })).toHaveCount(0);
     await expect(page.locator('tbody tr', { hasText: order2Ref })).toHaveCount(1);
 
-    await page.getByRole('combobox', { name: 'Payment: Bank Transfer' }).click();
-    await page.getByRole('option', { name: 'All' }).click();
+    await paymentFilter.click();
+    await page.getByRole('option', { name: 'All', exact: true }).click();
     await waitForOrdersFetchAll(page);
     await expect(page.locator('tbody tr', { hasText: order1Ref })).toHaveCount(1);
     await expect(page.locator('tbody tr', { hasText: order2Ref })).toHaveCount(1);
@@ -359,11 +372,14 @@ test.describe.serial('Payment & Delivery Flow', () => {
     const costDelta = round2(afterSummary.data.totalCost - baselineFinance.totalCost);
     const profitDelta = round2(afterSummary.data.grossProfit - baselineFinance.grossProfit);
 
+    const codReceivableDelta = round2(afterSummary.data.codReceivable - baselineFinance.codReceivable);
+    const codOrderCountDelta = afterSummary.data.codOrderCount - baselineFinance.codOrderCount;
+
     expect(revenueDelta).toBe(expected.totals.revenue);
     expect(costDelta).toBe(expected.totals.cost);
     expect(profitDelta).toBe(expected.totals.profit);
-    expect(afterSummary.data.codReceivable).toBe(expected.codReceivable);
-    expect(afterSummary.data.codOrderCount).toBe(expected.codOrderCount);
+    expect(codReceivableDelta).toBe(expected.codReceivable);
+    expect(codOrderCountDelta).toBe(expected.codOrderCount);
 
     await openPage(page, '/finance/revenue-profit', 'Revenue & Profit');
 
