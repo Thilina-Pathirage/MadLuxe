@@ -132,7 +132,7 @@ function displayDate(value: string) {
 }
 
 async function setAppDate(page: Page, label: string, value: string) {
-  const input = page.getByLabel(label).first();
+  const input = page.getByLabel(label).locator('input').first();
   await input.focus();
   await input.fill(displayDate(value));
   await input.press('Enter');
@@ -386,9 +386,14 @@ test.describe.serial('Payment & Delivery Flow', () => {
     await page.getByRole('combobox', { name: 'Payment filter' }).click();
     await page.getByRole('option', { name: 'COD Only' }).click();
     await waitForFinanceSummary(page, { period: 'monthly', year: currentYear, paymentMethod: 'COD' });
-    await expect(page.getByText('COD Receivable')).toBeVisible();
-    await expect(page.getByText(`${expected.codOrderCount} COD orders`)).toBeVisible();
-    await expect(page.getByText(`Rs. ${expected.codReceivable.toLocaleString()}`)).toBeVisible();
+    const codReceivableCard = page
+      .locator('[class*="MuiCard-root"]')
+      .filter({ has: page.getByText('COD Receivable', { exact: true }) })
+      .first();
+
+    await expect(codReceivableCard).toBeVisible();
+    await expect(codReceivableCard.getByText(`${afterSummary.data.codOrderCount} COD orders`, { exact: true })).toBeVisible();
+    await expect(codReceivableCard.getByText(`Rs. ${afterSummary.data.codReceivable.toLocaleString()}`, { exact: true })).toBeVisible();
 
     await page.getByRole('combobox', { name: 'Payment filter' }).click();
     await page.getByRole('option', { name: 'Bank Transfer Only' }).click();

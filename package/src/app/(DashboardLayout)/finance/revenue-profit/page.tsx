@@ -23,6 +23,10 @@ import { api } from "@/lib/api";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
+function formatVariantLabel(label: string) {
+  return (label ?? "").split("|").map((s) => s.trim()).filter(Boolean).join(" / ");
+}
+
 function KpiCard({ label, value, sub, icon: Icon, color }: {
   label: string; value: string; sub?: string; icon: React.ElementType; color: string;
 }) {
@@ -93,7 +97,12 @@ export default function RevenueProfitPage() {
 
   const fetchBreakdown = useCallback(() => {
     setLoadingBreakdown(true);
-    const params: Record<string, string> = { period, year: String(currentYear), limit: "30" };
+    const hasDateFilter = Boolean(fromDate || toDate);
+    const params: Record<string, string> = {
+      period,
+      year: String(currentYear),
+      limit: hasDateFilter ? "200" : "30",
+    };
     if (period === "daily") params.month = selectedMonth;
     if (paymentFilter !== "All") params.paymentMethod = paymentFilter;
     if (fromDate) params.dateFrom = fromDate;
@@ -132,6 +141,7 @@ export default function RevenueProfitPage() {
           </Select>
         )}
         <Select value={paymentFilter} size="small" sx={{ minWidth: 160 }}
+          inputProps={{ 'aria-label': 'Payment filter' }}
           onChange={(e) => setPaymentFilter(e.target.value)}>
           <MenuItem value="All">All Payments</MenuItem>
           <MenuItem value="COD">COD Only</MenuItem>
@@ -229,7 +239,7 @@ export default function RevenueProfitPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 500, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {r.variantLabel}
+                          {formatVariantLabel(r.variantLabel)}
                         </Typography>
                       </TableCell>
                       <TableCell align="center"><Typography variant="body2">{r.qtySold}</Typography></TableCell>
