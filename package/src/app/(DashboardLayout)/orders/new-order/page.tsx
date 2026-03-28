@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Box, Card, CardContent, Grid, Typography, TextField, MenuItem,
-  Button, Alert, Divider, Table, TableHead, TableBody, TableRow,
+  Button, Alert, AlertColor, Divider, Table, TableHead, TableBody, TableRow,
   TableCell, TableContainer, IconButton, Snackbar, InputAdornment,
   Chip, CircularProgress,
 } from "@mui/material";
@@ -34,12 +34,15 @@ function formatVariantLabel(v: any) {
   return parts.filter(Boolean).join(" / ");
 }
 
+const PHONE_MAX_DIGITS = 9;
+
 export default function NewOrderPage() {
   const router = useRouter();
 
   // Customer
   const [custName, setCustName]   = useState("");
   const [custPhone, setCustPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
 
   // Dropdown data
   const [categories, setCategories]   = useState<any[]>([]);
@@ -80,6 +83,7 @@ export default function NewOrderPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [snackMsg, setSnackMsg]     = useState("");
+  const [snackSeverity, setSnackSeverity] = useState<AlertColor>("success");
 
   // Load categories + colors on mount
   useEffect(() => {
@@ -97,6 +101,7 @@ export default function NewOrderPage() {
   // Variant lookup when all 4 selectors are filled
   useEffect(() => {
     if (!catId || !typeId || !size || !colorId) { setMatchedVariant(null); return; }
+    setMatchedVariant(null);
     setLookingUp(true);
     api.getVariants({ category: catId, productType: typeId, size, color: colorId, limit: "1" })
       .then((r) => setMatchedVariant((r.data ?? [])[0] ?? null))
@@ -125,10 +130,24 @@ export default function NewOrderPage() {
 
   const total = Math.max(0, subtotalAfterItemDiscount - couponDiscount - manualDiscountAmount);
 
-  const canAddItem   = !!matchedVariant && addQty > 0 && matchedVariant.stockQty > 0;
-  const stockWarning = matchedVariant && matchedVariant.stockQty > 0 && addQty > matchedVariant.stockQty
-    ? `Only ${matchedVariant.stockQty} units in stock.`
+  const matchedStockQty = matchedVariant ? Number(matchedVariant.stockQty) : null;
+  const matchedStatus = String(matchedVariant?.status ?? "").toLowerCase();
+  const canAddItem = !!matchedVariant && matchedStockQty !== null && addQty > 0 && matchedStockQty > 0;
+  const stockWarning = matchedStockQty !== null && matchedStockQty > 0 && addQty > matchedStockQty
+    ? `Only ${matchedStockQty} units in stock.`
     : "";
+  const hasCompleteVariantSelection = !!catId && !!typeId && !!size && !!colorId;
+  const isOutOfStockSelection =
+    hasCompleteVariantSelection &&
+    !lookingUp &&
+    !!matchedVariant &&
+    matchedStockQty !== null &&
+    (matchedStockQty <= 0 || matchedStatus === "out of stock");
+  const isUnavailableSelection = hasCompleteVariantSelection && !lookingUp && !matchedVariant;
+  const addDisabledReason =
+    isOutOfStockSelection || isUnavailableSelection
+      ? "Out of stock - cannot add this item."
+      : "";
 
   const handleAddLine = () => {
     if (!matchedVariant) return;
@@ -165,6 +184,34 @@ export default function NewOrderPage() {
     if (appliedCoupon) { setAppliedCoupon(""); setCouponDiscount(0); setCouponSuccess(""); }
   };
 
+  const handlePhoneChange = (value: string) => {
+    const digitsOnly = value.replace(/\D/g, "");
+    if (digitsOnly.length > PHONE_MAX_DIGITS) {
+      setCustPhone(digitsOnly.slice(0, PHONE_MAX_DIGITS));
+      setPhoneError(`Phone number can have at most ${PHONE_MAX_DIGITS} digits.`);
+      return;
+    }
+    setCustPhone(digitsOnly);
+    if (value && /\D/.test(value)) {
+      setPhoneError("Only numeric characters allowed.");
+      return;
+    }
+    setPhoneError("");
+  };
+
+  const ensurePhoneIsValid = () => {
+    if (!custPhone) {
+      setPhoneError("Phone number is required.");
+      return false;
+    }
+    if (phoneError) return false;
+    if (custPhone.length !== PHONE_MAX_DIGITS) {
+      setPhoneError(`Phone number must have ${PHONE_MAX_DIGITS} digits.`);
+      return false;
+    }
+    return true;
+  };
+
   const handleApplyCoupon = async () => {
     setCouponValidating(true);
     try {
@@ -187,11 +234,16 @@ export default function NewOrderPage() {
 
   const handleConfirmOrder = async () => {
     if (lines.length === 0) return;
+    if (!ensurePhoneIsValid()) {
+      setSnackSeverity("error");
+      setSnackMsg("Please fix the phone number before submitting.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res: any = await api.createOrder({
         customerName: custName || undefined,
-        customerPhone: custPhone || undefined,
+        customerPhone: custPhone ? `+94${custPhone}` : undefined,
         items: lines.map((l) => ({
           variantId: l.variantId,
           qty: l.qty,
@@ -204,15 +256,17 @@ export default function NewOrderPage() {
         paymentMethod,
         deliveryFee,
       });
+      setSnackSeverity("success");
       setSnackMsg(`Order ${res.data?.orderRef ?? ""} confirmed! Total: Rs.${total.toFixed(2)}`);
       // Reset all form state
-      setLines([]); setCustName(""); setCustPhone("");
+      setLines([]); setCustName(""); setCustPhone(""); setPhoneError("");
       setCouponInput(""); setAppliedCoupon(""); setCouponDiscount(0);
       setCouponSuccess(""); setCouponError("");
       setManualDiscount(0); setManualDiscountType("fixed");
       setPaymentMethod("BankTransfer"); setDeliveryFee(0);
       setTimeout(() => router.push("/orders/all-orders"), 1500);
     } catch (err: any) {
+      setSnackSeverity("error");
       setSnackMsg(err.message ?? "Failed to create order.");
     } finally {
       setSubmitting(false);
@@ -230,15 +284,26 @@ export default function NewOrderPage() {
           {/* Customer */}
           <Card sx={{ mb: 2.5 }}>
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ color: "primary.dark", mb: 2 }}>Customer (Optional)</Typography>
+              <Typography variant="h6" sx={{ color: "primary.dark", mb: 2 }}>Customer</Typography>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField label="Customer Name" value={custName} size="small" fullWidth
                     onChange={(e) => setCustName(e.target.value)} />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField label="Phone" value={custPhone} size="small" fullWidth
-                    onChange={(e) => setCustPhone(e.target.value)} />
+                  <TextField
+                    label="Phone"
+                    value={custPhone}
+                    size="small"
+                    fullWidth
+                    error={!!phoneError}
+                    helperText={phoneError || `Required ${PHONE_MAX_DIGITS}-digit local number; +94 prefix added.`}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">+94</InputAdornment>,
+                      inputProps: { maxLength: PHONE_MAX_DIGITS },
+                    }}
+                  />
                 </Grid>
               </Grid>
             </CardContent>
@@ -329,25 +394,27 @@ export default function NewOrderPage() {
                   </TextField>
                 </Grid>
               </Grid>
-              {matchedVariant && matchedVariant.stockQty === 0 && (
-                <Alert severity="error" sx={{ mt: 1.5 }}>This variant is out of stock.</Alert>
-              )}
               {stockWarning && (
                 <Alert severity="warning" sx={{ mt: 1.5 }}>{stockWarning}</Alert>
               )}
-              {matchedVariant && matchedVariant.stockQty > 0 && !stockWarning && (
+              {matchedVariant && matchedStockQty !== null && matchedStockQty > 0 && !stockWarning && (
                 <Box sx={{ mt: 1.5 }}>
                   <Typography variant="caption" color="text.secondary">
-                    {formatVariantLabel(matchedVariant)} — {matchedVariant.stockQty} in stock — Rs.{matchedVariant.sellPrice.toFixed(2)} each
+                    {formatVariantLabel(matchedVariant)} — {matchedStockQty} in stock — Rs.{matchedVariant.sellPrice.toFixed(2)} each
                   </Typography>
                 </Box>
               )}
 
-              {/* Add button moved to bottom */}
-              <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+              {/* Add button + disabled reason in one row */}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 2 }}>
+                {addDisabledReason && (
+                  <Alert severity="error" sx={{ flex: 1, mb: 0, py: 0 }}>
+                    {addDisabledReason}
+                  </Alert>
+                )}
                 <Button variant="contained" size="medium"
                   disabled={!canAddItem || !!stockWarning || lookingUp}
-                  onClick={handleAddLine} sx={{ minWidth: 120, height: 40 }}>
+                  onClick={handleAddLine} sx={{ minWidth: 120, height: 40, ml: "auto" }}>
                   {lookingUp ? <CircularProgress size={16} color="inherit" /> : "Add"}
                 </Button>
               </Box>
@@ -561,7 +628,7 @@ export default function NewOrderPage() {
 
       <Snackbar open={!!snackMsg} autoHideDuration={4000} onClose={() => setSnackMsg("")}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
-        <Alert severity="success" variant="filled" onClose={() => setSnackMsg("")}>{snackMsg}</Alert>
+        <Alert severity={snackSeverity} variant="filled" onClose={() => setSnackMsg("")}>{snackMsg}</Alert>
       </Snackbar>
     </PageContainer>
   );

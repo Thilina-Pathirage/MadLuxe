@@ -10,14 +10,16 @@ import {
   ListItemText,
 } from "@mui/material";
 
-import { IconListCheck, IconMail, IconUser, IconSun, IconMoon } from "@tabler/icons-react";
+import { IconSun, IconMoon, IconSettings } from "@tabler/icons-react";
 import { useTheme } from "@/utils/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 const Profile = () => {
   const [anchorEl2, setAnchorEl2] = useState(null);
   const { mode, toggleTheme } = useTheme();
   const { logout } = useAuth();
+  const router = useRouter();
 
   const handleClick2 = (event: any) => {
     setAnchorEl2(event.currentTarget);
@@ -42,7 +44,7 @@ const Profile = () => {
         onClick={handleClick2}
       >
         <Avatar
-          src="/images/profile/user-1.jpg"
+          src="/images/profile/female.png"
           alt="image"
           sx={{
             width: 35,
@@ -67,23 +69,12 @@ const Profile = () => {
           },
         }}
       >
-        <MenuItem>
+
+        <MenuItem onClick={() => { handleClose2(); router.push("/settings/general"); }}>
           <ListItemIcon>
-            <IconUser width={20} />
+            <IconSettings width={20} />
           </ListItemIcon>
-          <ListItemText>My Profile</ListItemText>
-        </MenuItem>
-        <MenuItem>
-          <ListItemIcon>
-            <IconMail width={20} />
-          </ListItemIcon>
-          <ListItemText>My Account</ListItemText>
-        </MenuItem>
-        <MenuItem>
-          <ListItemIcon>
-            <IconListCheck width={20} />
-          </ListItemIcon>
-          <ListItemText>My Tasks</ListItemText>
+          <ListItemText>Account Settings </ListItemText>
         </MenuItem>
         <MenuItem onClick={toggleTheme}>
           <ListItemIcon>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type InputHTMLAttributes } from "react";
 import {
   Box, Grid, Card, CardContent, Typography, List, ListItem, ListItemText,
   ListItemSecondaryAction, IconButton, TextField, Button, Select, MenuItem,
@@ -179,6 +179,8 @@ export default function ProductConfigPage() {
   };
 
   const selectedType = productTypes.find((t) => t._id === selTypeId);
+  const fixedCardSx = { height: 400, display: "flex", flexDirection: "column" } as const;
+  const scrollBodySx = { flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5 } as const;
 
   return (
     <PageContainer title="Product Config" description="Manage product dropdown values">
@@ -188,35 +190,37 @@ export default function ProductConfigPage() {
 
         {/* ── Categories ── */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: "100%" }}>
-            <CardContent sx={{ p: 2.5 }}>
+          <Card sx={fixedCardSx}>
+            <CardContent sx={{ p: 2.5, height: "100%", display: "flex", flexDirection: "column" }}>
               <Typography variant="h6" sx={{ color: "primary.dark", mb: 1.5 }}>Categories</Typography>
-              {loadingCats ? (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}><CircularProgress size={20} /></Box>
-              ) : (
-                <List dense disablePadding>
-                  {categories.map((c) => (
-                    <ListItem key={c._id} disablePadding sx={{ py: 0.5, borderBottom: "1px solid", borderColor: "rgba(196,198,207,0.2)" }}>
-                      <ListItemText
-                        primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{c.name}</Typography>}
-                      />
-                      <ListItemSecondaryAction>
-                        <IconButton size="small" sx={{ mr: 0.5 }}
-                          onClick={() => setEditDialog({ section: "category", id: c._id, name: c.name })}>
-                          <IconEdit size={14} stroke={1.5} />
-                        </IconButton>
-                        <IconButton size="small" sx={{ color: "error.main" }}
-                          onClick={() => setDeleteTarget({ section: "category", id: c._id, name: c.name })}>
-                          <IconTrash size={14} stroke={1.5} />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  ))}
-                  {categories.length === 0 && (
-                    <Typography variant="caption" color="text.disabled" sx={{ pl: 0.5 }}>No categories yet.</Typography>
-                  )}
-                </List>
-              )}
+              <Box sx={scrollBodySx}>
+                {loadingCats ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}><CircularProgress size={20} /></Box>
+                ) : (
+                  <List dense disablePadding>
+                    {categories.map((c) => (
+                      <ListItem key={c._id} disablePadding sx={{ py: 0.5, borderBottom: "1px solid", borderColor: "rgba(196,198,207,0.2)" }}>
+                        <ListItemText
+                          primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{c.name}</Typography>}
+                        />
+                        <ListItemSecondaryAction>
+                          <IconButton size="small" sx={{ mr: 0.5 }}
+                            onClick={() => setEditDialog({ section: "category", id: c._id, name: c.name })}>
+                            <IconEdit size={14} stroke={1.5} />
+                          </IconButton>
+                          <IconButton size="small" sx={{ color: "error.main" }}
+                            onClick={() => setDeleteTarget({ section: "category", id: c._id, name: c.name })}>
+                            <IconTrash size={14} stroke={1.5} />
+                          </IconButton>
+                        </ListItemSecondaryAction>
+                      </ListItem>
+                    ))}
+                    {categories.length === 0 && (
+                      <Typography variant="caption" color="text.disabled" sx={{ pl: 0.5 }}>No categories yet.</Typography>
+                    )}
+                  </List>
+                )}
+              </Box>
               <InlineAdd onSave={addCategory} placeholder="New category name…" />
             </CardContent>
           </Card>
@@ -224,8 +228,8 @@ export default function ProductConfigPage() {
 
         {/* ── Product Types ── */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: "100%" }}>
-            <CardContent sx={{ p: 2.5 }}>
+          <Card sx={fixedCardSx}>
+            <CardContent sx={{ p: 2.5, height: "100%", display: "flex", flexDirection: "column" }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
                 <Typography variant="h6" sx={{ color: "primary.dark" }}>Types</Typography>
                 <Select value={selCatId} size="small" sx={{ minWidth: 140 }} data-testid="types-category-select"
@@ -234,39 +238,41 @@ export default function ProductConfigPage() {
                   {categories.map((c) => <MenuItem key={c._id} value={c._id}>{c.name}</MenuItem>)}
                 </Select>
               </Box>
-              {loadingTypes ? (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}><CircularProgress size={20} /></Box>
-              ) : (
-                <List dense disablePadding>
-                  {productTypes.map((t) => (
-                    <ListItem key={t._id} disablePadding sx={{ py: 0.5, borderBottom: "1px solid", borderColor: "rgba(196,198,207,0.2)" }}>
-                      <ListItemText
-                        primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{t.name}</Typography>}
-                        secondary={
-                          <Typography variant="caption" color="text.secondary">
-                            {t.hasSizes ? `Sizes: ${(t.sizes ?? []).join(", ") || "none"}` : "No sizes"}
-                          </Typography>
-                        }
-                      />
-                      <ListItemSecondaryAction>
-                        <IconButton size="small" sx={{ mr: 0.5 }}
-                          onClick={() => setEditDialog({ section: "type", id: t._id, name: t.name, hasSizes: t.hasSizes, sizes: t.sizes ?? [] })}>
-                          <IconEdit size={14} stroke={1.5} />
-                        </IconButton>
-                        <IconButton size="small" sx={{ color: "error.main" }}
-                          onClick={() => setDeleteTarget({ section: "type", id: t._id, name: t.name })}>
-                          <IconTrash size={14} stroke={1.5} />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  ))}
-                  {productTypes.length === 0 && (
-                    <Typography variant="caption" color="text.disabled" sx={{ pl: 0.5 }}>
-                      {selCatId ? "No types for this category." : "Select a category first."}
-                    </Typography>
-                  )}
-                </List>
-              )}
+              <Box sx={scrollBodySx}>
+                {loadingTypes ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}><CircularProgress size={20} /></Box>
+                ) : (
+                  <List dense disablePadding>
+                    {productTypes.map((t) => (
+                      <ListItem key={t._id} disablePadding sx={{ py: 0.5, borderBottom: "1px solid", borderColor: "rgba(196,198,207,0.2)" }}>
+                        <ListItemText
+                          primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{t.name}</Typography>}
+                          secondary={
+                            <Typography variant="caption" color="text.secondary">
+                              {t.hasSizes ? `Sizes: ${(t.sizes ?? []).join(", ") || "none"}` : "No sizes"}
+                            </Typography>
+                          }
+                        />
+                        <ListItemSecondaryAction>
+                          <IconButton size="small" sx={{ mr: 0.5 }}
+                            onClick={() => setEditDialog({ section: "type", id: t._id, name: t.name, hasSizes: t.hasSizes, sizes: t.sizes ?? [] })}>
+                            <IconEdit size={14} stroke={1.5} />
+                          </IconButton>
+                          <IconButton size="small" sx={{ color: "error.main" }}
+                            onClick={() => setDeleteTarget({ section: "type", id: t._id, name: t.name })}>
+                            <IconTrash size={14} stroke={1.5} />
+                          </IconButton>
+                        </ListItemSecondaryAction>
+                      </ListItem>
+                    ))}
+                    {productTypes.length === 0 && (
+                      <Typography variant="caption" color="text.disabled" sx={{ pl: 0.5 }}>
+                        {selCatId ? "No types for this category." : "Select a category first."}
+                      </Typography>
+                    )}
+                  </List>
+                )}
+              </Box>
               <InlineAdd onSave={addType} placeholder="New type name…" loading={!selCatId} />
             </CardContent>
           </Card>
@@ -274,8 +280,8 @@ export default function ProductConfigPage() {
 
         {/* ── Sizes (edit via type) ── */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: "100%" }}>
-            <CardContent sx={{ p: 2.5 }}>
+          <Card sx={fixedCardSx}>
+            <CardContent sx={{ p: 2.5, height: "100%", display: "flex", flexDirection: "column" }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
                 <Typography variant="h6" sx={{ color: "primary.dark" }}>Sizes</Typography>
                 <Select value={selTypeId} size="small" sx={{ minWidth: 160 }} data-testid="sizes-type-select"
@@ -288,7 +294,10 @@ export default function ProductConfigPage() {
                 <>
                   <FormControlLabel
                     control={
-                      <Switch checked={selectedType.hasSizes ?? false} size="small" slotProps={{ input: { 'data-testid': 'has-sizes-switch' } }}
+                      <Switch
+                        checked={selectedType.hasSizes ?? false}
+                        size="small"
+                        inputProps={{ 'data-testid': 'has-sizes-switch' } as InputHTMLAttributes<HTMLInputElement>}
                         onChange={async (e) => {
                           try {
                             await api.updateProductType(selectedType._id, { hasSizes: e.target.checked, sizes: selectedType.sizes });
@@ -301,29 +310,31 @@ export default function ProductConfigPage() {
                   />
                   {selectedType.hasSizes && (
                     <>
-                      <List dense disablePadding>
-                        {(selectedType.sizes ?? []).map((s: string) => (
-                          <ListItem key={s} disablePadding sx={{ py: 0.5, borderBottom: "1px solid", borderColor: "rgba(196,198,207,0.2)" }}>
-                            <ListItemText primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{s === "N/A" ? "No size (N/A)" : s}</Typography>} />
-                            <ListItemSecondaryAction>
-                              <IconButton size="small" sx={{ color: "error.main" }}
-                                onClick={async () => {
-                                  const newSizes = (selectedType.sizes ?? []).filter((x: string) => x !== s);
-                                  try {
-                                    await api.updateProductType(selectedType._id, { sizes: newSizes });
-                                    notify(`Size "${s}" removed.`);
-                                    fetchTypes();
-                                  } catch (err: any) { notify(err.message ?? "Failed.", "error"); }
-                                }}>
-                                <IconTrash size={14} stroke={1.5} />
-                              </IconButton>
-                            </ListItemSecondaryAction>
-                          </ListItem>
-                        ))}
-                        {(selectedType.sizes ?? []).length === 0 && (
-                          <Typography variant="caption" color="text.disabled" sx={{ pl: 0.5 }}>No sizes — add one below.</Typography>
-                        )}
-                      </List>
+                      <Box sx={scrollBodySx}>
+                        <List dense disablePadding>
+                          {(selectedType.sizes ?? []).map((s: string) => (
+                            <ListItem key={s} disablePadding sx={{ py: 0.5, borderBottom: "1px solid", borderColor: "rgba(196,198,207,0.2)" }}>
+                              <ListItemText primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{s === "N/A" ? "No size (N/A)" : s}</Typography>} />
+                              <ListItemSecondaryAction>
+                                <IconButton size="small" sx={{ color: "error.main" }}
+                                  onClick={async () => {
+                                    const newSizes = (selectedType.sizes ?? []).filter((x: string) => x !== s);
+                                    try {
+                                      await api.updateProductType(selectedType._id, { sizes: newSizes });
+                                      notify(`Size "${s}" removed.`);
+                                      fetchTypes();
+                                    } catch (err: any) { notify(err.message ?? "Failed.", "error"); }
+                                  }}>
+                                  <IconTrash size={14} stroke={1.5} />
+                                </IconButton>
+                              </ListItemSecondaryAction>
+                            </ListItem>
+                          ))}
+                          {(selectedType.sizes ?? []).length === 0 && (
+                            <Typography variant="caption" color="text.disabled" sx={{ pl: 0.5 }}>No sizes — add one below.</Typography>
+                          )}
+                        </List>
+                      </Box>
                       <InlineAdd placeholder="New size…" onSave={async (s) => {
                         const newSizes = [...(selectedType.sizes ?? []), s];
                         try {
@@ -334,9 +345,16 @@ export default function ProductConfigPage() {
                       }} />
                     </>
                   )}
+                  {!selectedType.hasSizes && (
+                    <Box sx={scrollBodySx}>
+                      <Typography variant="caption" color="text.disabled">Enable "Has sizes" to manage sizes.</Typography>
+                    </Box>
+                  )}
                 </>
               ) : (
-                <Typography variant="caption" color="text.disabled">Select a type to manage its sizes.</Typography>
+                <Box sx={scrollBodySx}>
+                  <Typography variant="caption" color="text.disabled">Select a type to manage its sizes.</Typography>
+                </Box>
               )}
             </CardContent>
           </Card>
@@ -344,35 +362,37 @@ export default function ProductConfigPage() {
 
         {/* ── Colors ── */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: "100%" }}>
-            <CardContent sx={{ p: 2.5 }}>
+          <Card sx={fixedCardSx}>
+            <CardContent sx={{ p: 2.5, height: "100%", display: "flex", flexDirection: "column" }}>
               <Typography variant="h6" sx={{ color: "primary.dark", mb: 1.5 }}>Colours</Typography>
-              {loadingColors ? (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}><CircularProgress size={20} /></Box>
-              ) : (
-                <List dense disablePadding>
-                  {colors.map((c) => (
-                    <ListItem key={c._id} disablePadding sx={{ py: 0.5, borderBottom: "1px solid", borderColor: "rgba(196,198,207,0.2)" }}>
-                      <Box sx={{ width: 16, height: 16, borderRadius: "3px", mr: 1.5, flexShrink: 0, bgcolor: c.hexCode ?? "#bdbdbd", border: "1px solid rgba(0,0,0,0.12)" }} />
-                      <ListItemText primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{c.name}</Typography>}
-                        secondary={<Typography variant="caption" color="text.disabled">{c.hexCode}</Typography>} />
-                      <ListItemSecondaryAction>
-                        <IconButton size="small" sx={{ mr: 0.5 }}
-                          onClick={() => setEditDialog({ section: "color", id: c._id, name: c.name, hexCode: c.hexCode })}>
-                          <IconEdit size={14} stroke={1.5} />
-                        </IconButton>
-                        <IconButton size="small" sx={{ color: "error.main" }}
-                          onClick={() => setDeleteTarget({ section: "color", id: c._id, name: c.name })}>
-                          <IconTrash size={14} stroke={1.5} />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  ))}
-                  {colors.length === 0 && (
-                    <Typography variant="caption" color="text.disabled" sx={{ pl: 0.5 }}>No colours yet.</Typography>
-                  )}
-                </List>
-              )}
+              <Box sx={scrollBodySx}>
+                {loadingColors ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}><CircularProgress size={20} /></Box>
+                ) : (
+                  <List dense disablePadding>
+                    {colors.map((c) => (
+                      <ListItem key={c._id} disablePadding sx={{ py: 0.5, borderBottom: "1px solid", borderColor: "rgba(196,198,207,0.2)" }}>
+                        <Box sx={{ width: 16, height: 16, borderRadius: "3px", mr: 1.5, flexShrink: 0, bgcolor: c.hexCode ?? "#bdbdbd", border: "1px solid rgba(0,0,0,0.12)" }} />
+                        <ListItemText primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{c.name}</Typography>}
+                          secondary={<Typography variant="caption" color="text.disabled">{c.hexCode}</Typography>} />
+                        <ListItemSecondaryAction>
+                          <IconButton size="small" sx={{ mr: 0.5 }}
+                            onClick={() => setEditDialog({ section: "color", id: c._id, name: c.name, hexCode: c.hexCode })}>
+                            <IconEdit size={14} stroke={1.5} />
+                          </IconButton>
+                          <IconButton size="small" sx={{ color: "error.main" }}
+                            onClick={() => setDeleteTarget({ section: "color", id: c._id, name: c.name })}>
+                            <IconTrash size={14} stroke={1.5} />
+                          </IconButton>
+                        </ListItemSecondaryAction>
+                      </ListItem>
+                    ))}
+                    {colors.length === 0 && (
+                      <Typography variant="caption" color="text.disabled" sx={{ pl: 0.5 }}>No colours yet.</Typography>
+                    )}
+                  </List>
+                )}
+              </Box>
               <Box sx={{ display: "flex", gap: 1, pt: 1, alignItems: "center" }}>
                 <Box component="input" type="color" value={newColorHex}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewColorHex(e.target.value)}
