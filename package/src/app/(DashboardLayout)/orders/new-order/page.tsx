@@ -368,10 +368,9 @@ export default function NewOrderPage() {
                     {colors.map((c) => <MenuItem key={c._id} value={c._id}>{c.name}</MenuItem>)}
                   </TextField>
                 </Grid>
-                <Grid size={{ xs: 12, sm: 2 }}>
+                <Grid size={{ xs: 6, sm: 2 }}>
                   <TextField label="Qty" type="number" value={addQty} size="small" fullWidth
                     onChange={(e) => setAddQty(Math.max(1, Number(e.target.value)))}
-                    sx={{ minWidth: 120 }}
                     slotProps={{ htmlInput: { min: 1 } }} />
                 </Grid>
 
@@ -405,19 +404,23 @@ export default function NewOrderPage() {
                 </Box>
               )}
 
-              {/* Add button + disabled reason in one row */}
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 2 }}>
-                {addDisabledReason && (
-                  <Alert severity="error" sx={{ flex: 1, mb: 0, py: 0 }}>
-                    {addDisabledReason}
-                  </Alert>
-                )}
-                <Button variant="contained" size="medium"
-                  disabled={!canAddItem || !!stockWarning || lookingUp}
-                  onClick={handleAddLine} sx={{ minWidth: 120, height: 40, ml: "auto" }}>
-                  {lookingUp ? <CircularProgress size={16} color="inherit" /> : "Add"}
-                </Button>
-              </Box>
+              {/* Third row aligned to the same 12-column grid */}
+              <Grid container spacing={1.5} alignItems="center" sx={{ mt: 0.5 }}>
+                <Grid size={{ xs: 12, sm: 10 }}>
+                  {addDisabledReason && (
+                    <Alert severity="error" sx={{ mb: 0, py: 0 }}>
+                      {addDisabledReason}
+                    </Alert>
+                  )}
+                </Grid>
+                <Grid size={{ xs: 12, sm: 2 }}>
+                  <Button variant="contained" size="medium" fullWidth
+                    disabled={!canAddItem || !!stockWarning || lookingUp}
+                    onClick={handleAddLine} sx={{ height: 40 }}>
+                    {lookingUp ? <CircularProgress size={16} color="inherit" /> : "Add"}
+                  </Button>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
 
