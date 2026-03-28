@@ -34,6 +34,7 @@ export default function AllOrdersPage() {
   const [toDate, setToDate]         = useState("");
   const [statusFilter, setStatus]   = useState("All");
   const [couponFilter, setCoupon]   = useState("All");
+  const [paymentFilter, setPayment] = useState("All");
   const [expanded, setExpanded]     = useState<Set<string>>(new Set());
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
   const [snackMsg, setSnackMsg]     = useState("");
@@ -47,12 +48,13 @@ export default function AllOrdersPage() {
     if (couponFilter === "Yes") params.couponApplied = "true";
     if (fromDate) params.dateFrom = fromDate;
     if (toDate)   params.dateTo   = toDate;
+    if (paymentFilter !== "All") params.paymentMethod = paymentFilter;
 
     api.getOrders(params)
       .then((res: any) => { setOrders(res.data ?? []); setTotal(res.total ?? 0); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [page, statusFilter, couponFilter, fromDate, toDate]);
+  }, [page, statusFilter, couponFilter, paymentFilter, fromDate, toDate]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -103,6 +105,13 @@ export default function AllOrdersPage() {
               displayEmpty renderValue={(v) => v === "All" ? "Coupon: All" : `Coupon: ${v}`}>
               {["All", "Yes", "No"].map((s) => <MenuItem key={s} value={s}>{s === "All" ? "All" : `${s} coupon`}</MenuItem>)}
             </Select>
+            <Select value={paymentFilter} size="small" sx={{ minWidth: 160 }}
+              onChange={(e) => handleFilter(() => setPayment(e.target.value))}
+              displayEmpty renderValue={(v) => v === "All" ? "Payment: All" : `Payment: ${v === "COD" ? "COD" : "Bank Transfer"}`}>
+              <MenuItem value="All">All</MenuItem>
+              <MenuItem value="COD">COD</MenuItem>
+              <MenuItem value="BankTransfer">Bank Transfer</MenuItem>
+            </Select>
           </Box>
         </CardContent>
       </Card>
@@ -121,6 +130,7 @@ export default function AllOrdersPage() {
                 <TableCell align="right">Subtotal</TableCell>
                 <TableCell align="right">Discount</TableCell>
                 <TableCell align="right">Total</TableCell>
+                <TableCell>Payment</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -128,7 +138,7 @@ export default function AllOrdersPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={10} align="center" sx={{ py: 6 }}><CircularProgress size={24} /></TableCell>
+                  <TableCell colSpan={11} align="center" sx={{ py: 6 }}><CircularProgress size={24} /></TableCell>
                 </TableRow>
               ) : orders.map((o) => {
                 const isOpen = expanded.has(o._id);
@@ -169,6 +179,22 @@ export default function AllOrdersPage() {
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>Rs.{o.total.toFixed(2)}</Typography>
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Chip
+                        label={o.paymentMethod === "COD" ? "COD" : "Bank"}
+                        size="small"
+                        sx={{
+                          bgcolor: o.paymentMethod === "COD" ? "warning.main" : "info.main",
+                          color: "white",
+                          fontWeight: 600,
+                        }}
+                      />
+                      {o.deliveryFee > 0 && (
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          +Rs.{o.deliveryFee.toFixed(2)} delivery
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Chip label={o.status} color={STATUS_COLOR[o.status]} size="small" />
                       {o.couponCode && (
                         <Chip label={o.couponCode} size="small"
@@ -187,7 +213,7 @@ export default function AllOrdersPage() {
                   </TableRow>,
 
                   <TableRow key={`${o._id}-detail`}>
-                    <TableCell colSpan={10} sx={{ p: 0, border: 0 }}>
+                    <TableCell colSpan={11} sx={{ p: 0, border: 0 }}>
                       <Collapse in={isOpen} unmountOnExit>
                         <Box sx={{ bgcolor: "grey.100", px: 4, py: 1.5 }}>
                           <Table size="small">
@@ -254,7 +280,7 @@ export default function AllOrdersPage() {
 
               {!loading && orders.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} align="center" sx={{ py: 6, color: "text.secondary" }}>
+                  <TableCell colSpan={11} align="center" sx={{ py: 6, color: "text.secondary" }}>
                     No orders match the current filters.
                   </TableCell>
                 </TableRow>

@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 import {
   IconTrendingUp, IconShoppingCart, IconChartBar, IconPercentage,
-  IconDownload,
+  IconDownload, IconTruck,
 } from "@tabler/icons-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -18,6 +18,7 @@ import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
+import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
 import { api } from "@/lib/api";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -67,6 +68,9 @@ export default function RevenueProfitPage() {
 
   const [period, setPeriod]   = useState<"monthly" | "daily">("monthly");
   const [selectedMonth, setSelectedMonth] = useState(initMonth);
+  const [paymentFilter, setPaymentFilter] = useState("All");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate]     = useState("");
   const [exportOpen, setExportOpen] = useState(false);
 
   const [summary, setSummary]   = useState<any>(null);
@@ -78,21 +82,27 @@ export default function RevenueProfitPage() {
     setLoadingSummary(true);
     const params: Record<string, string> = { period, year: String(currentYear) };
     if (period === "daily") params.month = selectedMonth;
+    if (paymentFilter !== "All") params.paymentMethod = paymentFilter;
+    if (fromDate) params.dateFrom = fromDate;
+    if (toDate)   params.dateTo   = toDate;
     api.getFinanceSummary(params)
       .then((res: any) => setSummary(res.data ?? null))
       .catch(() => {})
       .finally(() => setLoadingSummary(false));
-  }, [period, selectedMonth]);
+  }, [period, selectedMonth, paymentFilter, fromDate, toDate]);
 
   const fetchBreakdown = useCallback(() => {
     setLoadingBreakdown(true);
     const params: Record<string, string> = { period, year: String(currentYear), limit: "30" };
     if (period === "daily") params.month = selectedMonth;
+    if (paymentFilter !== "All") params.paymentMethod = paymentFilter;
+    if (fromDate) params.dateFrom = fromDate;
+    if (toDate)   params.dateTo   = toDate;
     api.getFinanceBreakdown(params)
       .then((res: any) => setBreakdown(res.data ?? []))
       .catch(() => {})
       .finally(() => setLoadingBreakdown(false));
-  }, [period, selectedMonth]);
+  }, [period, selectedMonth, paymentFilter, fromDate, toDate]);
 
   useEffect(() => { fetchSummary(); fetchBreakdown(); }, [fetchSummary, fetchBreakdown]);
 
@@ -101,7 +111,7 @@ export default function RevenueProfitPage() {
     label: `${m} ${currentYear}`,
   }));
 
-  const kpi = summary ?? { totalRevenue: 0, totalCost: 0, grossProfit: 0, profitMargin: 0 };
+  const kpi = summary ?? { totalRevenue: 0, totalCost: 0, grossProfit: 0, profitMargin: 0, codReceivable: 0, codOrderCount: 0 };
   const chartData = summary?.chartData ?? [];
 
   return (
@@ -121,6 +131,14 @@ export default function RevenueProfitPage() {
             {monthOptions.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </Select>
         )}
+        <Select value={paymentFilter} size="small" sx={{ minWidth: 160 }}
+          onChange={(e) => setPaymentFilter(e.target.value)}>
+          <MenuItem value="All">All Payments</MenuItem>
+          <MenuItem value="COD">COD Only</MenuItem>
+          <MenuItem value="BankTransfer">Bank Transfer Only</MenuItem>
+        </Select>
+        <AppDatePicker label="From" value={fromDate} onChange={setFromDate} sx={{ width: 160 }} />
+        <AppDatePicker label="To"   value={toDate}   onChange={setToDate}   sx={{ width: 160 }} />
       </Box>
 
       {/* KPI Cards */}
@@ -135,6 +153,17 @@ export default function RevenueProfitPage() {
             <KpiCard {...c} />
           </Grid>
         ))}
+        {(paymentFilter === "All" || paymentFilter === "COD") && (
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <KpiCard
+              label="COD Receivable"
+              value={`Rs. ${kpi.codReceivable.toLocaleString()}`}
+              sub={`${kpi.codOrderCount} COD orders`}
+              icon={IconTruck}
+              color="#f57c00"
+            />
+          </Grid>
+        )}
       </Grid>
 
       {/* Chart */}

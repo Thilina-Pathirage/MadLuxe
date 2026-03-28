@@ -130,24 +130,24 @@ const COUPONS_DATA = [
   { code: 'NEWUSER',   type: 'fixed',   value: 3,  minOrderValue: null, expiryDate: new Date('2025-12-31'), usageLimit: 100,  usedCount: 42, isActive: false },
 ];
 
-// Orders seed: [orderRef, customerName, phone, couponCode, subtotal, discountAmount, total, status, createdAt, items[]]
+// Orders seed: [orderRef, customerName, phone, couponCode, subtotal, discountAmount, total, status, createdAt, items[], paymentMethod, deliveryFee]
 // items: [numericVariantId, qty, unitPrice, lineTotal]
 const ORDERS_DATA = [
-  ['ORD-001','Sarah Bennett', '07700900001', null,        55.97,  0,    55.97, 'Completed', '2026-03-06', [[1,2,16.99,33.98],[3,1,22.99,22.99]]],
-  ['ORD-002','James O\'Brien','07700900002', 'SUMMER10',  74.97,  7.50, 67.47, 'Completed', '2026-03-07', [[11,3,24.99,74.97]]],
-  ['ORD-003','Priya Sharma',  '07700900003', null,        97.94,  0,    97.94, 'Completed', '2026-03-08', [[31,4,19.99,79.96],[34,2,8.99,17.98]]],
-  ['ORD-004','Ahmed Hassan',  '07700900004', 'FLAT5',     41.98,  5,    36.98, 'Completed', '2026-03-09', [[40,1,11.99,11.99],[7,1,29.99,29.99]]],
-  ['ORD-005','Emma Williams', '07700900005', null,        98.93,  0,    98.93, 'Completed', '2026-03-10', [[20,2,26.99,53.98],[45,3,14.99,44.97]]],
-  ['ORD-006','Tom Fletcher',  '07700900006', 'WELCOME15', 76.96, 11.54, 65.42,'Completed', '2026-03-14', [[1,1,16.99,16.99],[32,3,19.99,59.97]]],
-  ['ORD-007','Chloe Martin',  '07700900007', null,        38.97,  0,    38.97, 'Completed', '2026-03-15', [[41,2,11.99,23.98],[46,1,14.99,14.99]]],
-  ['ORD-008','Daniel Park',   '07700900008', null,        59.98,  0,    59.98, 'Completed', '2026-03-16', [[8,2,29.99,59.98]]],
-  ['ORD-009','Fatima Al-Zahra','07700900009','SUMMER10',  55.97,  5.60, 50.37, 'Completed', '2026-03-18', [[1,2,16.99,33.98],[15,1,21.99,21.99]]],
-  ['ORD-010','George Hughes', '07700900010', null,       111.95,  0,   111.95, 'Completed', '2026-03-19', [[23,2,25.99,51.98],[33,3,19.99,59.97]]],
-  ['ORD-011','Isabella Turner','07700900011',null,         32.97,  0,    32.97, 'Pending',   '2026-03-20', [[44,2,11.99,23.98],[35,1,8.99,8.99]]],
-  ['ORD-012','Lucas Green',   '07700900012', null,        74.98,  0,    74.98, 'Pending',   '2026-03-21', [[26,1,36.99,36.99],[9,1,37.99,37.99]]],
-  ['ORD-013','Maya Patel',    '07700900013', null,        41.97,  0,    41.97, 'Completed', '2026-03-22', [[47,2,14.99,29.98],[43,1,11.99,11.99]]],
-  ['ORD-014','Noah Baker',    '07700900014', null,        38.99,  0,    38.99, 'Cancelled', '2026-03-22', [[29,1,38.99,38.99]]],
-  ['ORD-015','Olivia Scott',  '07700900015', 'FLAT5',    108.95,  5,   103.95, 'Pending',   '2026-03-23', [[3,3,22.99,68.97],[32,2,19.99,39.98]]],
+  ['ORD-001','Sarah Bennett', '07700900001', null,        55.97,  0,    55.97, 'Completed', '2026-03-06', [[1,2,16.99,33.98],[3,1,22.99,22.99]],              'BankTransfer', 0],
+  ['ORD-002','James O\'Brien','07700900002', 'SUMMER10',  74.97,  7.50, 67.47, 'Completed', '2026-03-07', [[11,3,24.99,74.97]],                                'COD',          350],
+  ['ORD-003','Priya Sharma',  '07700900003', null,        97.94,  0,    97.94, 'Completed', '2026-03-08', [[31,4,19.99,79.96],[34,2,8.99,17.98]],              'COD',          350],
+  ['ORD-004','Ahmed Hassan',  '07700900004', 'FLAT5',     41.98,  5,    36.98, 'Completed', '2026-03-09', [[40,1,11.99,11.99],[7,1,29.99,29.99]],              'BankTransfer', 0],
+  ['ORD-005','Emma Williams', '07700900005', null,        98.93,  0,    98.93, 'Completed', '2026-03-10', [[20,2,26.99,53.98],[45,3,14.99,44.97]],             'COD',          350],
+  ['ORD-006','Tom Fletcher',  '07700900006', 'WELCOME15', 76.96, 11.54, 65.42,'Completed', '2026-03-14', [[1,1,16.99,16.99],[32,3,19.99,59.97]],              'BankTransfer', 0],
+  ['ORD-007','Chloe Martin',  '07700900007', null,        38.97,  0,    38.97, 'Completed', '2026-03-15', [[41,2,11.99,23.98],[46,1,14.99,14.99]],             'COD',          350],
+  ['ORD-008','Daniel Park',   '07700900008', null,        59.98,  0,    59.98, 'Completed', '2026-03-16', [[8,2,29.99,59.98]],                                  'BankTransfer', 0],
+  ['ORD-009','Fatima Al-Zahra','07700900009','SUMMER10',  55.97,  5.60, 50.37, 'Completed', '2026-03-18', [[1,2,16.99,33.98],[15,1,21.99,21.99]],              'COD',          350],
+  ['ORD-010','George Hughes', '07700900010', null,       111.95,  0,   111.95, 'Completed', '2026-03-19', [[23,2,25.99,51.98],[33,3,19.99,59.97]],             'BankTransfer', 0],
+  ['ORD-011','Isabella Turner','07700900011',null,         32.97,  0,    32.97, 'Pending',   '2026-03-20', [[44,2,11.99,23.98],[35,1,8.99,8.99]],              'COD',          350],
+  ['ORD-012','Lucas Green',   '07700900012', null,        74.98,  0,    74.98, 'Pending',   '2026-03-21', [[26,1,36.99,36.99],[9,1,37.99,37.99]],              'BankTransfer', 0],
+  ['ORD-013','Maya Patel',    '07700900013', null,        41.97,  0,    41.97, 'Completed', '2026-03-22', [[47,2,14.99,29.98],[43,1,11.99,11.99]],             'COD',          350],
+  ['ORD-014','Noah Baker',    '07700900014', null,        38.99,  0,    38.99, 'Cancelled', '2026-03-22', [[29,1,38.99,38.99]],                                 'BankTransfer', 0],
+  ['ORD-015','Olivia Scott',  '07700900015', 'FLAT5',    108.95,  5,   103.95, 'Pending',   '2026-03-23', [[3,3,22.99,68.97],[32,2,19.99,39.98]],              'COD',          350],
 ];
 
 // ─── SEED RUNNER ──────────────────────────────────────────────────────────
@@ -261,7 +261,7 @@ async function seed() {
 
   // ── 7. Orders ──
   console.log('Seeding orders...');
-  const orderDocs = ORDERS_DATA.map(([orderRef, customerName, customerPhone, couponCode, subtotal, discountAmount, total, status, createdAt, rawItems]) => {
+  const orderDocs = ORDERS_DATA.map(([orderRef, customerName, customerPhone, couponCode, subtotal, discountAmount, total, status, createdAt, rawItems, paymentMethod, deliveryFee]) => {
     const items = rawItems.map(([numVarId, qty, unitPrice, lineTotal]) => {
       const vData = VARIANTS_DATA.find(([id]) => id === numVarId);
       const costPrice = vData ? vData[6] : 0;
@@ -293,6 +293,8 @@ async function seed() {
       manualDiscount: 0,
       manualDiscountAmount: 0,
       total,
+      paymentMethod: paymentMethod || 'BankTransfer',
+      deliveryFee: deliveryFee || 0,
       status,
       createdAt: new Date(createdAt),
     };

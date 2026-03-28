@@ -24,6 +24,7 @@ const getAll = async (req, res, next) => {
 
     if (status) filter.status = status;
     if (couponApplied === 'true') filter.couponCode = { $ne: '' };
+    if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
     if (dateFrom || dateTo) {
       filter.createdAt = {};
       if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
@@ -85,6 +86,8 @@ const create = async (req, res, next) => {
       manualDiscount = 0,
       manualDiscountType = null,
       notes,
+      paymentMethod = 'BankTransfer',
+      deliveryFee = 0,
     } = req.body;
 
     if (!rawItems || rawItems.length === 0) {
@@ -286,6 +289,8 @@ const create = async (req, res, next) => {
       manualDiscount,
       manualDiscountAmount: resolvedManualDiscountAmount,
       total,
+      paymentMethod,
+      deliveryFee,
       notes: notes || '',
     });
 

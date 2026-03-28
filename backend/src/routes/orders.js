@@ -12,6 +12,8 @@ router.post(
     body('items').isArray({ min: 1 }).withMessage('Items array is required'),
     body('items.*.variantId').notEmpty().isMongoId().withMessage('Valid variant ID required for each item'),
     body('items.*.qty').isInt({ min: 1 }).withMessage('Item quantity must be at least 1'),
+    body('paymentMethod').optional().isIn(['COD', 'BankTransfer']).withMessage('Payment method must be COD or BankTransfer'),
+    body('deliveryFee').optional().isFloat({ min: 0 }).withMessage('Delivery fee must be >= 0'),
   ],
   validate,
   ctrl.create

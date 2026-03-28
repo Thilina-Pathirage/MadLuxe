@@ -74,6 +74,10 @@ export default function NewOrderPage() {
   const [manualDiscount, setManualDiscount]         = useState(0);
   const [manualDiscountType, setManualDiscountType] = useState<"fixed" | "percent">("fixed");
 
+  // Payment method
+  const [paymentMethod, setPaymentMethod] = useState<"COD" | "BankTransfer">("BankTransfer");
+  const [deliveryFee, setDeliveryFee]     = useState(300);
+
   const [submitting, setSubmitting] = useState(false);
   const [snackMsg, setSnackMsg]     = useState("");
 
@@ -197,6 +201,8 @@ export default function NewOrderPage() {
         couponCode: appliedCoupon || undefined,
         manualDiscount: manualDiscount || undefined,
         manualDiscountType: manualDiscountType,
+        paymentMethod,
+        deliveryFee,
       });
       setSnackMsg(`Order ${res.data?.orderRef ?? ""} confirmed! Total: Rs.${total.toFixed(2)}`);
       // Reset all form state
@@ -204,6 +210,7 @@ export default function NewOrderPage() {
       setCouponInput(""); setAppliedCoupon(""); setCouponDiscount(0);
       setCouponSuccess(""); setCouponError("");
       setManualDiscount(0); setManualDiscountType("fixed");
+      setPaymentMethod("BankTransfer"); setDeliveryFee(0);
       setTimeout(() => router.push("/orders/all-orders"), 1500);
     } catch (err: any) {
       setSnackMsg(err.message ?? "Failed to create order.");
@@ -237,6 +244,36 @@ export default function NewOrderPage() {
             </CardContent>
           </Card>
 
+          {/* Payment & Delivery */}
+          <Card sx={{ mb: 2.5 }}>
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ color: "primary.dark", mb: 2 }}>Payment & Delivery</Typography>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <TextField select label="Payment Method" value={paymentMethod} size="small" fullWidth
+                    onChange={(e) => setPaymentMethod(e.target.value as "COD" | "BankTransfer")}>
+                    <MenuItem value="BankTransfer">Bank Transfer</MenuItem>
+                    <MenuItem value="COD">COD (Cash on Delivery)</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <TextField select label="Delivery Method" value={deliveryFee > 0 ? "Delivery" : "StorePickup"} size="small" fullWidth
+                    onChange={(e) => setDeliveryFee(e.target.value === "Delivery" ? 300 : 0)}>
+                    <MenuItem value="Delivery">Delivery</MenuItem>
+                    <MenuItem value="StorePickup">Store Pickup</MenuItem>
+                  </TextField>
+                </Grid>
+                {deliveryFee > 0 && (
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField type="number" label="Delivery Fee" value={deliveryFee} size="small" fullWidth
+                      onChange={(e) => setDeliveryFee(Math.max(0, Number(e.target.value)))}
+                      slotProps={{ input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }} />
+                  </Grid>
+                )}
+              </Grid>
+            </CardContent>
+          </Card>
+
           {/* Add items */}
           <Card sx={{ mb: 2.5 }}>
             <CardContent sx={{ p: 3 }}>
@@ -266,17 +303,11 @@ export default function NewOrderPage() {
                     {colors.map((c) => <MenuItem key={c._id} value={c._id}>{c.name}</MenuItem>)}
                   </TextField>
                 </Grid>
-                <Grid size={{ xs: 4, sm: 1 }}>
+                <Grid size={{ xs: 12, sm: 2 }}>
                   <TextField label="Qty" type="number" value={addQty} size="small" fullWidth
                     onChange={(e) => setAddQty(Math.max(1, Number(e.target.value)))}
+                    sx={{ minWidth: 120 }}
                     slotProps={{ htmlInput: { min: 1 } }} />
-                </Grid>
-                <Grid size={{ xs: 8, sm: 1 }}>
-                  <Button variant="contained" size="medium" fullWidth
-                    disabled={!canAddItem || !!stockWarning || lookingUp}
-                    onClick={handleAddLine} sx={{ height: 40 }}>
-                    {lookingUp ? <CircularProgress size={16} color="inherit" /> : "Add"}
-                  </Button>
                 </Grid>
 
                 {/* Per-item discount */}
@@ -298,7 +329,6 @@ export default function NewOrderPage() {
                   </TextField>
                 </Grid>
               </Grid>
-
               {matchedVariant && matchedVariant.stockQty === 0 && (
                 <Alert severity="error" sx={{ mt: 1.5 }}>This variant is out of stock.</Alert>
               )}
@@ -312,6 +342,15 @@ export default function NewOrderPage() {
                   </Typography>
                 </Box>
               )}
+
+              {/* Add button moved to bottom */}
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                <Button variant="contained" size="medium"
+                  disabled={!canAddItem || !!stockWarning || lookingUp}
+                  onClick={handleAddLine} sx={{ minWidth: 120, height: 40 }}>
+                  {lookingUp ? <CircularProgress size={16} color="inherit" /> : "Add"}
+                </Button>
+              </Box>
             </CardContent>
           </Card>
 
@@ -491,6 +530,21 @@ export default function NewOrderPage() {
                     Rs.{total.toFixed(2)}
                   </Typography>
                 </Box>
+
+                {deliveryFee > 0 && (
+                  <>
+                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                      <Typography variant="body2" color="text.secondary">Delivery Fee</Typography>
+                      <Typography variant="body2">Rs.{deliveryFee.toFixed(2)}</Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>Customer Pays</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: "warning.dark" }}>
+                        Rs.{(total + deliveryFee).toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </>
+                )}
               </Box>
 
               <Button

@@ -5,10 +5,14 @@ const round2 = (n) => Math.round(n * 100) / 100;
 
 const getSummary = async (req, res, next) => {
   try {
-    const { period = 'monthly', year, month } = req.query;
+    const { period = 'monthly', year, month, paymentMethod, dateFrom: qDateFrom, dateTo: qDateTo } = req.query;
 
     let dateFrom, dateTo;
-    if (period === 'daily' && month) {
+    if (qDateFrom && qDateTo) {
+      dateFrom = new Date(qDateFrom);
+      dateTo = new Date(qDateTo);
+      dateTo.setHours(23, 59, 59, 999);
+    } else if (period === 'daily' && month) {
       const [y, m] = month.split('-').map(Number);
       dateFrom = new Date(y, m - 1, 1);
       dateTo = new Date(y, m, 0, 23, 59, 59, 999);
@@ -18,10 +22,10 @@ const getSummary = async (req, res, next) => {
       dateTo = new Date(y, 11, 31, 23, 59, 59, 999);
     }
 
-    const orders = await Order.find({
-      status: 'Completed',
-      createdAt: { $gte: dateFrom, $lte: dateTo },
-    }).select('total items createdAt');
+    const filter = { status: 'Completed', createdAt: { $gte: dateFrom, $lte: dateTo } };
+    if (paymentMethod) filter.paymentMethod = paymentMethod;
+
+    const orders = await Order.find(filter).select('total items createdAt paymentMethod');
 
     let totalRevenue = 0;
     let totalCost = 0;
@@ -47,6 +51,15 @@ const getSummary = async (req, res, next) => {
       if (!buckets[label]) buckets[label] = { revenue: 0, cost: 0 };
       buckets[label].revenue += order.total;
       buckets[label].cost += orderCost;
+    }
+
+    let codReceivable = 0;
+    let codOrderCount = 0;
+    for (const order of orders) {
+      if (order.paymentMethod === 'COD') {
+        codReceivable += order.total;
+        codOrderCount++;
+      }
     }
 
     const grossProfit = round2(totalRevenue - totalCost);
@@ -77,6 +90,8 @@ const getSummary = async (req, res, next) => {
         totalCost: round2(totalCost),
         grossProfit,
         profitMargin,
+        codReceivable: round2(codReceivable),
+        codOrderCount,
         chartData,
       },
     });
@@ -87,10 +102,14 @@ const getSummary = async (req, res, next) => {
 
 const getBreakdown = async (req, res, next) => {
   try {
-    const { period = 'monthly', year, month, category, page = 1, limit = 25 } = req.query;
+    const { period = 'monthly', year, month, category, paymentMethod, dateFrom: qDateFrom, dateTo: qDateTo, page = 1, limit = 25 } = req.query;
 
     let dateFrom, dateTo;
-    if (period === 'daily' && month) {
+    if (qDateFrom && qDateTo) {
+      dateFrom = new Date(qDateFrom);
+      dateTo = new Date(qDateTo);
+      dateTo.setHours(23, 59, 59, 999);
+    } else if (period === 'daily' && month) {
       const [y, m] = month.split('-').map(Number);
       dateFrom = new Date(y, m - 1, 1);
       dateTo = new Date(y, m, 0, 23, 59, 59, 999);
@@ -100,10 +119,10 @@ const getBreakdown = async (req, res, next) => {
       dateTo = new Date(y, 11, 31, 23, 59, 59, 999);
     }
 
-    const orders = await Order.find({
-      status: 'Completed',
-      createdAt: { $gte: dateFrom, $lte: dateTo },
-    })
+    const breakdownFilter = { status: 'Completed', createdAt: { $gte: dateFrom, $lte: dateTo } };
+    if (paymentMethod) breakdownFilter.paymentMethod = paymentMethod;
+
+    const orders = await Order.find(breakdownFilter)
       .populate({
         path: 'items.variant',
         populate: [
@@ -113,7 +132,7 @@ const getBreakdown = async (req, res, next) => {
         ],
         select: 'sku size category productType color',
       })
-      .select('items createdAt');
+      .select('items createdAt paymentMethod');
 
     const rows = [];
     for (const order of orders) {
@@ -128,7 +147,8 @@ const getBreakdown = async (req, res, next) => {
           costPrice: item.costPrice, // Actual batch cost (FIFO allocated)
           sellPrice: item.unitPrice,
           revenue: round2(item.lineFinal),
-          profit: round2(item.lineFinal - item.costPrice * item.qty), // Using actual batch cost
+          profit: round2(item.lineFinal - item.costPrice * item.qty),
+          paymentMethod: order.paymentMethod || 'BankTransfer',
         });
       }
     }

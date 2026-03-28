@@ -42,6 +42,12 @@ const orderSchema = new mongoose.Schema(
     manualDiscountAmount: { type: Number, default: 0 },  // calculated amount
 
     total: { type: Number, required: true },
+    paymentMethod: {
+      type: String,
+      enum: ['COD', 'BankTransfer'],
+      default: 'BankTransfer',
+    },
+    deliveryFee: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ['Pending', 'Completed', 'Cancelled'],

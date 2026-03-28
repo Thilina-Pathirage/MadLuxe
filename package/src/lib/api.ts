@@ -141,6 +141,8 @@ export interface Order {
   manualDiscount: number;
   manualDiscountAmount: number;
   total: number;
+  paymentMethod: 'COD' | 'BankTransfer';
+  deliveryFee: number;
   status: 'Pending' | 'Completed' | 'Cancelled';
   createdAt: string;
 }
@@ -159,6 +161,8 @@ export interface CreateOrderInput {
   couponCode?: string;
   manualDiscount?: number;
   manualDiscountType?: 'percent' | 'fixed' | null;
+  paymentMethod?: 'COD' | 'BankTransfer';
+  deliveryFee?: number;
   notes?: string;
 }
 
@@ -172,6 +176,16 @@ export interface CouponValidation {
     value: number;
   };
   discountAmount?: number;
+}
+
+export interface FinanceSummary {
+  totalRevenue: number;
+  totalCost: number;
+  grossProfit: number;
+  profitMargin: number;
+  codReceivable: number;
+  codOrderCount: number;
+  chartData: { label: string; revenue: number; cost: number; profit: number }[];
 }
 
 export interface DashboardStats {
@@ -291,7 +305,7 @@ export const api = {
 
   // Finance
   getFinanceSummary: (params?: Record<string, string>) =>
-    request<ApiResponse<unknown>>('/finance/summary?' + new URLSearchParams(params ?? {})),
+    request<ApiResponse<FinanceSummary>>('/finance/summary?' + new URLSearchParams(params ?? {})),
   getFinanceBreakdown: (params?: Record<string, string>) =>
     request<PaginatedResponse<unknown>>('/finance/breakdown?' + new URLSearchParams(params ?? {})),
   getTopSelling: (params?: Record<string, string>) =>
