@@ -1,0 +1,53 @@
+# Global node/yarn/pnpm
+node_modules/
+**/node_modules/
+.pnp.*
+.npm/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.next/
+**/.next/
+out/
+**/out/
+.turbo/
+.vercel/
+
+# Logs & caches
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+.parcel-cache/
+.cache/
+
+# Testing artifacts
+coverage/
+**/coverage/
+playwright-report/
+.playwright-cache/
+test-results/
+package/tests/e2e/.auth/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.template
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Backend uploads (keep tracked placeholder)
+backend/uploads/products/*
+!backend/uploads/products/.gitkeep

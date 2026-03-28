@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/thilina/Documents/personal/Modernize-Nextjs-Free/backend",
+      "port": 5001,
+      "autoPort": false
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/thilina/Documents/personal/Modernize-Nextjs-Free/package",
+      "port": 3000,
+      "autoPort": false
+    }
+  ]
+}
