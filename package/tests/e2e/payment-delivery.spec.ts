@@ -383,14 +383,14 @@ test.describe.serial('Payment & Delivery Flow', () => {
 
     await openPage(page, '/finance/revenue-profit', 'Revenue & Profit');
 
-    await page.getByRole('button', { name: 'All Payments' }).click();
+    await page.getByRole('combobox', { name: 'Payment filter' }).click();
     await page.getByRole('option', { name: 'COD Only' }).click();
     await waitForFinanceSummary(page, { period: 'monthly', year: currentYear, paymentMethod: 'COD' });
     await expect(page.getByText('COD Receivable')).toBeVisible();
     await expect(page.getByText(`${expected.codOrderCount} COD orders`)).toBeVisible();
     await expect(page.getByText(`Rs. ${expected.codReceivable.toLocaleString()}`)).toBeVisible();
 
-    await page.getByRole('button', { name: 'COD Only' }).click();
+    await page.getByRole('combobox', { name: 'Payment filter' }).click();
     await page.getByRole('option', { name: 'Bank Transfer Only' }).click();
     await waitForFinanceSummary(page, {
       period: 'monthly',
@@ -399,7 +399,7 @@ test.describe.serial('Payment & Delivery Flow', () => {
     });
     await expect(page.getByText('COD Receivable')).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Bank Transfer Only' }).click();
+    await page.getByRole('combobox', { name: 'Payment filter' }).click();
     await page.getByRole('option', { name: 'All Payments' }).click();
     await waitForFinanceSummary(page, { period: 'monthly', year: currentYear });
     await expect(page.getByText('COD Receivable')).toBeVisible();
