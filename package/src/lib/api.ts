@@ -270,11 +270,16 @@ export const api = {
     qty: number;
     reason: string;
     notes?: string;
+    movementId?: string;
   }) =>
     request<ApiResponse<unknown>>('/stock-movements/adjust', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  getActiveBatches: (params?: Record<string, string>) =>
+    request<PaginatedResponse<StockMovement>>(
+      '/stock-movements/active-batches?' + new URLSearchParams(params ?? {})
+    ),
 
   // Orders
   getOrders: (params?: Record<string, string>) =>

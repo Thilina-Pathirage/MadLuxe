@@ -7,7 +7,7 @@ import {
   Select, MenuItem, Collapse, Snackbar, Alert, Pagination, Tooltip,
   CircularProgress,
 } from "@mui/material";
-import { IconChevronDown, IconChevronUp, IconX, IconDownload } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconX, IconDownload, IconFileInvoice } from "@tabler/icons-react";
 import Link from "next/link";
 import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
@@ -16,6 +16,7 @@ import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
 import ConfirmDialog from "@/components/madlaxue/shared/ConfirmDialog";
 import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
+import OrderBillDialog from "@/components/madlaxue/shared/OrderBillDialog";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
 import { api, Order } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
@@ -37,6 +38,7 @@ export default function AllOrdersPage() {
   const [paymentFilter, setPayment] = useState("All");
   const [expanded, setExpanded]     = useState<Set<string>>(new Set());
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [viewOrder, setViewOrder]   = useState<Order | null>(null);
   const [snackMsg, setSnackMsg]     = useState("");
   const [exportOpen, setExportOpen] = useState(false);
   const [page, setPage]             = useState(1);
@@ -202,6 +204,11 @@ export default function AllOrdersPage() {
                       )}
                     </TableCell>
                     <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                      <Tooltip title="View bill">
+                        <IconButton size="small" onClick={() => setViewOrder(o)}>
+                          <IconFileInvoice size={15} />
+                        </IconButton>
+                      </Tooltip>
                       {o.status === "Pending" && (
                         <Tooltip title="Cancel order">
                           <IconButton size="small" sx={{ color: "error.main" }} onClick={() => setCancelTarget(o)}>
@@ -310,6 +317,14 @@ export default function AllOrdersPage() {
         <Alert severity="info" variant="filled" onClose={() => setSnackMsg("")}>{snackMsg}</Alert>
       </Snackbar>
       <ExportSnackbar open={exportOpen} onClose={() => setExportOpen(false)} />
+
+      {viewOrder && (
+        <OrderBillDialog
+          open={!!viewOrder}
+          order={viewOrder}
+          onClose={() => setViewOrder(null)}
+        />
+      )}
     </PageContainer>
   );
 }

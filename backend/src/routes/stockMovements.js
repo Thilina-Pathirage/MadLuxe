@@ -4,6 +4,7 @@ const router = express.Router();
 const ctrl = require('../controllers/stockMovementController');
 const validate = require('../middleware/validate');
 
+router.get('/active-batches', ctrl.getActiveBatches);
 router.get('/', ctrl.getAll);
 
 router.post(
@@ -24,6 +25,7 @@ router.post(
     body('qty').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
     body('adjustDirection').isIn(['add', 'reduce']).withMessage('adjustDirection must be add or reduce'),
     body('reason').notEmpty().withMessage('Reason is required'),
+    body('movementId').optional().isMongoId().withMessage('Valid movement ID required'),
   ],
   validate,
   ctrl.adjust

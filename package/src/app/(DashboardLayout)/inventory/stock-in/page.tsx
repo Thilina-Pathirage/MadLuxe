@@ -15,10 +15,11 @@ import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
 import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
-import { api, StockMovement } from "@/lib/api";
+import { api, type StockMovement } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 
 const today = dayjs().format("YYYY-MM-DD");
+const getDisplayBatchTotal = (m: StockMovement) => Math.max(m.qty ?? 0, m.qtyRemaining ?? 0);
 
 function mvLabel(m: any) {
   if (!m?.variant) return "Unknown";
@@ -51,6 +52,7 @@ export default function StockInPage() {
   // Matched variant
   const [matchedVariant, setMatchedVariant] = useState<any | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
+  const [existingBatches, setExistingBatches] = useState<StockMovement[]>([]);
 
   // History
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -89,6 +91,14 @@ export default function StockInPage() {
       .catch(() => setMatchedVariant(null))
       .finally(() => setLookingUp(false));
   }, [catId, typeId, size, colorId]);
+
+  // Fetch existing batches when variant is matched
+  useEffect(() => {
+    if (!matchedVariant) { setExistingBatches([]); return; }
+    api.getActiveBatches({ variant: matchedVariant._id, limit: "50" })
+      .then((r) => setExistingBatches(r.data ?? []))
+      .catch(() => setExistingBatches([]));
+  }, [matchedVariant]);
 
   // Autofill sell price from matched variant
   useEffect(() => {
@@ -181,6 +191,7 @@ export default function StockInPage() {
               {lookingUp ? (
                 <Alert severity="info">Looking up variant…</Alert>
               ) : matchedVariant ? (
+                <>
                 <Alert
                   severity="info"
                   icon={
@@ -204,17 +215,70 @@ export default function StockInPage() {
                       <Typography variant="caption" color="text.secondary">SKU: {matchedVariant.sku}</Typography>
                     </Box>
                     <Typography variant="body2">Current stock: <strong>{matchedVariant.stockQty}</strong> units</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Cost Price: <strong>Rs. {matchedVariant.costPrice?.toFixed(2) ?? "—"}</strong>
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Sell Price: <strong>Rs. {matchedVariant.sellPrice?.toFixed(2) ?? "—"}</strong>
-                    </Typography>
                     <Typography variant="caption" color="info.dark" sx={{ fontStyle: "italic" }}>
                       New stock will create a new FIFO batch at the cost you enter below.
                     </Typography>
                   </Box>
                 </Alert>
+                {existingBatches.length > 0 && (
+                  <Box sx={{ mt: 1.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                      Existing Batches ({existingBatches.reduce((s, b) => s + (b.qtyRemaining ?? 0), 0)} units total)
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small" sx={{ "& td, & th": { py: 0.5, px: 1, fontSize: "0.75rem" } }}>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Batch Date</TableCell>
+                            <TableCell align="center">Remaining</TableCell>
+                            <TableCell align="right">Cost/Unit</TableCell>
+                            <TableCell align="right">Sell/Unit</TableCell>
+                            <TableCell>Supplier</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {existingBatches.map((b) => {
+                            const remaining = b.qtyRemaining ?? 0;
+                            const total = getDisplayBatchTotal(b);
+                            return (
+                            <TableRow key={b._id}>
+                              <TableCell>
+                                <Typography variant="caption" color="text.secondary">
+                                  {dayjs(b.createdAt).format("DD MMM YYYY")}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="center">
+                                <Chip
+                                  label={`${remaining} / ${total}`}
+                                  size="small"
+                                  color={remaining === 0 ? "default" : "success"}
+                                  sx={{ fontWeight: 600, fontSize: "0.7rem", minWidth: 60 }}
+                                />
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography variant="caption">
+                                  Rs. {b.costPrice != null ? b.costPrice.toFixed(2) : "—"}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                  Rs. {b.sellPrice != null ? b.sellPrice.toFixed(2) : "—"}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="caption" color="text.secondary">
+                                  {b.supplier || "—"}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                )}
+                </>
               ) : (
                 <Alert severity="warning">No variant found for this combination. Add it in Products → Variants first.</Alert>
               )}
@@ -299,9 +363,10 @@ export default function StockInPage() {
                   <TableRow><TableCell colSpan={8} align="center" sx={{ py: 4 }}><CircularProgress size={20} /></TableCell></TableRow>
                 ) : movements.map((m) => {
                   const remaining = m.qtyRemaining ?? m.qty;
-                  const pct = m.qty > 0 ? remaining / m.qty : 0;
+                  const total = getDisplayBatchTotal(m);
+                  const pct = total > 0 ? remaining / total : 0;
                   const batchColor = pct === 0 ? "default" : pct < 0.25 ? "error" : pct < 0.75 ? "warning" : "success";
-                  const batchLabel = pct === 0 ? "Depleted" : `${remaining} / ${m.qty}`;
+                  const batchLabel = pct === 0 ? "Depleted" : `${remaining} / ${total}`;
                   return (
                   <TableRow key={m._id} hover sx={{ "&:last-child td": { border: 0 } }}>
                     <TableCell>
@@ -314,7 +379,7 @@ export default function StockInPage() {
                       <Typography variant="body2" sx={{ fontWeight: 700, color: "success.main" }}>+{m.qty}</Typography>
                     </TableCell>
                     <TableCell align="center">
-                      <Tooltip title={pct === 0 ? "All units from this batch have been sold" : `${remaining} of ${m.qty} units still available in this batch`}>
+                      <Tooltip title={pct === 0 ? "All units from this batch have been sold" : `${remaining} of ${total} units still available in this batch`}>
                         <Chip
                           label={batchLabel}
                           color={batchColor}

@@ -6,50 +6,67 @@ import {
   TableRow, TableCell, TableContainer, IconButton, TextField,
   Select, MenuItem, InputAdornment, ToggleButtonGroup, ToggleButton,
   Grid, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  Snackbar, Alert, Pagination, Tooltip, CircularProgress,
+  Snackbar, Alert, Pagination, Tooltip, CircularProgress, Chip,
 } from "@mui/material";
 import {
   IconSearch, IconPlus, IconMinus, IconList, IconLayoutGrid, IconHistory,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
-import StatusChip from "@/components/madlaxue/shared/StatusChip";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
-import { api } from "@/lib/api";
+import { api, StockMovement } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 
 const PER_PAGE = 25;
 
-// ─── Quick Action Dialog ───────────────────────────────────────────────────
-function QuickActionDialog({ variant, mode, onClose, onSubmit }: {
-  variant: any; mode: "add" | "reduce"; onClose: () => void; onSubmit: (id: string, qty: number, note: string) => void;
+const REASONS = ["Damaged", "Lost", "Found", "Returned", "Recount", "Other"];
+const getDisplayBatchTotal = (m: StockMovement) => Math.max(m.qty ?? 0, m.qtyRemaining ?? 0);
+
+// ─── Quick Action Dialog (batch-level) ────────────────────────────────────
+function QuickActionDialog({ batch, mode, onClose, onSubmit }: {
+  batch: StockMovement; mode: "add" | "reduce"; onClose: () => void;
+  onSubmit: (variantId: string, movementId: string, qty: number, reason: string) => void;
 }) {
-  const [qty, setQty]   = useState(1);
-  const [note, setNote] = useState("");
-  const max = mode === "reduce" ? variant.stockQty : 9999;
+  const [qty, setQty] = useState(1);
+  const [reason, setReason] = useState("");
+  const v = batch.variant;
+  const remaining = batch.qtyRemaining ?? 0;
+  const max = mode === "reduce" ? remaining : 9999;
+  const label = `${(v as any)?.productType?.name ?? ""} ${(v as any)?.color?.name ?? ""}`.trim();
+
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ fontWeight: 600 }}>
-        {mode === "add" ? "Quick Stock In" : "Quick Reduce"} — {variant.productType?.name} {variant.color?.name}
+        {mode === "add" ? "Add to Batch" : "Reduce from Batch"} — {label}
       </DialogTitle>
       <DialogContent sx={{ pt: "12px !important" }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+          Batch date: <strong>{dayjs(batch.createdAt).format("DD MMM YYYY")}</strong>
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+          Batch remaining: <strong>{remaining}</strong> units
+        </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Current stock: <strong>{variant.stockQty}</strong> units
+          Batch cost: <strong>Rs. {batch.costPrice?.toFixed(2) ?? "—"}</strong> / Sell: <strong>Rs. {batch.sellPrice?.toFixed(2) ?? "—"}</strong>
         </Typography>
         <TextField label="Quantity" type="number" value={qty}
           onChange={(e) => setQty(Math.max(1, Math.min(max, Number(e.target.value))))}
           fullWidth size="small" sx={{ mb: 2 }} slotProps={{ htmlInput: { min: 1, max } }} />
-        <TextField label="Note (optional)" value={note}
-          onChange={(e) => setNote(e.target.value)}
-          fullWidth size="small" multiline rows={2} />
+        <TextField select label="Reason" value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          fullWidth size="small">
+          {REASONS.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+        </TextField>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} variant="outlined" size="small">Cancel</Button>
-        <Button onClick={() => { onSubmit(variant._id, qty, note); onClose(); }}
-          variant="contained" color={mode === "add" ? "primary" : "error"} size="small">
+        <Button onClick={() => { if (reason) { onSubmit((v as any)?._id, batch._id, qty, reason); onClose(); } }}
+          variant="contained" color={mode === "add" ? "primary" : "error"} size="small"
+          disabled={!reason}>
           {mode === "add" ? "Add Stock" : "Reduce Stock"}
         </Button>
       </DialogActions>
@@ -57,52 +74,54 @@ function QuickActionDialog({ variant, mode, onClose, onSubmit }: {
   );
 }
 
-// ─── Grid Card ─────────────────────────────────────────────────────────────
-function StockCard({ v, onAdd, onReduce }: { v: any; onAdd: () => void; onReduce: () => void }) {
-  const stockColor =
-    v.status === "Out of Stock" ? "error.main" : v.status === "Low Stock" ? "warning.main" : "success.main";
-  const imageUrl = getPrimaryImageUrl(v);
+// ─── Grid Card (batch-level) ──────────────────────────────────────────────
+function BatchCard({ m, onAdd, onReduce }: { m: StockMovement; onAdd: () => void; onReduce: () => void }) {
+  const v = m.variant as any;
+  const remaining = m.qtyRemaining ?? 0;
+  const stockColor = remaining === 0 ? "error.main" : remaining <= 5 ? "warning.main" : "success.main";
+  const imageUrl = v ? getPrimaryImageUrl(v) : null;
   return (
     <Card sx={{ height: "100%", position: "relative", overflow: "hidden" }}>
-      <Box sx={{ height: 140, bgcolor: "grey.200", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+      <Box sx={{ height: 120, bgcolor: "grey.200", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
         {imageUrl ? (
-          <VariantImage
-            src={imageUrl}
-            alt={`${v.productType?.name} ${v.color?.name}`}
-            width="100%"
-            height="100%"
-            sx={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
+          <VariantImage src={imageUrl} alt={`${v?.productType?.name} ${v?.color?.name}`}
+            width="100%" height="100%" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
-          <ImagePlaceholder width={56} height={56} />
+          <ImagePlaceholder width={48} height={48} />
         )}
-        {v.status === "Out of Stock" && (
+        {remaining === 0 && (
           <Box sx={{ position: "absolute", inset: 0, bgcolor: "rgba(198,40,40,0.75)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Typography sx={{ color: "#fff", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.06em" }}>OUT OF STOCK</Typography>
+            <Typography sx={{ color: "#fff", fontWeight: 700, fontSize: "0.75rem", letterSpacing: "0.06em" }}>DEPLETED</Typography>
           </Box>
         )}
       </Box>
       <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {v.productType?.name} — {v.color?.name}
+          {v?.productType?.name} — {v?.color?.name}
         </Typography>
-        <Typography variant="caption" color="text.secondary">{v.category?.name}{v.size !== "N/A" ? ` / ${v.size}` : ""}</Typography>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1.25 }}>
+        <Typography variant="caption" color="text.secondary">
+          {v?.category?.name}{v?.size !== "N/A" ? ` / ${v?.size}` : ""} · {dayjs(m.createdAt).format("DD MMM")}
+        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1 }}>
           <Box>
-            <Typography variant="caption" color="text.secondary">Stock</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, color: stockColor }}>{v.stockQty}</Typography>
+            <Typography variant="caption" color="text.secondary">Remaining</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, color: stockColor }}>{remaining}</Typography>
           </Box>
-          <Typography variant="body2" sx={{ fontWeight: 600, color: "primary.main" }}>Rs. {v.sellPrice?.toFixed(2)}</Typography>
+          <Box sx={{ textAlign: "right" }}>
+            <Typography variant="caption" color="text.secondary">Cost</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Rs. {m.costPrice?.toFixed(2) ?? "—"}</Typography>
+          </Box>
         </Box>
         <Box sx={{ display: "flex", gap: 0.5, mt: 1.5 }}>
-          <Tooltip title="Add stock">
-            <IconButton size="small" onClick={onAdd} sx={{ bgcolor: "success.main", color: "white", borderRadius: "6px" }}>
+          <Tooltip title="Add to this batch">
+            <IconButton size="small" onClick={onAdd}
+              sx={{ bgcolor: "success.main", color: "white", borderRadius: "6px" }}>
               <IconPlus size={14} stroke={2} />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Reduce stock">
+          <Tooltip title="Reduce from this batch">
             <span>
-              <IconButton size="small" onClick={onReduce} disabled={v.stockQty === 0}
+              <IconButton size="small" onClick={onReduce} disabled={remaining === 0}
                 sx={{ bgcolor: "error.main", color: "white", borderRadius: "6px" }}>
                 <IconMinus size={14} stroke={2} />
               </IconButton>
@@ -114,82 +133,65 @@ function StockCard({ v, onAdd, onReduce }: { v: any; onAdd: () => void; onReduce
   );
 }
 
-// ─── Main Page ──────────────────────────────────────────────────────────────
+// ─── Main Page ─────────────────────────────────────────────────────────────
 export default function AllStockPage() {
   const router = useRouter();
-  const [variants, setVariants]   = useState<any[]>([]);
+  const [batches, setBatches] = useState<StockMovement[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
-  const [productTypes, setProductTypes] = useState<any[]>([]);
-  const [colors, setColors]       = useState<any[]>([]);
-  const [total, setTotal]         = useState(0);
-  const [loading, setLoading]     = useState(true);
-  const [view, setView]           = useState<"list" | "grid">("list");
-  const [search, setSearch]       = useState("");
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"list" | "grid">("list");
+  const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [sizeFilter] = useState("");
-  const [colorFilter, setColorFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [page, setPage]           = useState(1);
-  const [quickAction, setQuickAction] = useState<{ variant: any; mode: "add" | "reduce" } | null>(null);
-  const [snackbar, setSnackbar]   = useState("");
+  const [page, setPage] = useState(1);
+  const [quickAction, setQuickAction] = useState<{ batch: StockMovement; mode: "add" | "reduce" } | null>(null);
+  const [snackbar, setSnackbar] = useState("");
 
-  // Load filter options once
   useEffect(() => {
     api.getCategories().then((r: any) => setCategories(r.data ?? []));
-    api.getColors().then((r: any) => setColors(r.data ?? []));
   }, []);
 
-  useEffect(() => {
-    if (catFilter) {
-      api.getProductTypes(catFilter).then((r: any) => setProductTypes(r.data ?? []));
-    } else {
-      setProductTypes([]);
-      setTypeFilter("");
-    }
-  }, [catFilter]);
-
-  const fetchVariants = useCallback(() => {
+  const fetchBatches = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = { page: String(page), limit: String(PER_PAGE) };
-    if (catFilter)    params.category    = catFilter;
-    if (typeFilter)   params.productType = typeFilter;
-    if (sizeFilter)   params.size        = sizeFilter;
-    if (colorFilter)  params.color       = colorFilter;
-    if (search)       params.search      = search;
-    if (statusFilter === "Low Stock" || statusFilter === "Out of Stock") params.lowStock = "true";
+    if (catFilter) params.category = catFilter;
+    if (search)    params.search   = search;
 
-    api.getVariants(params)
+    api.getActiveBatches(params)
       .then((res: any) => {
-        let data = res.data ?? [];
-        if (statusFilter === "Out of Stock") data = data.filter((v: any) => v.stockQty === 0);
-        else if (statusFilter === "Low Stock") data = data.filter((v: any) => v.stockQty > 0 && v.status === "Low Stock");
-        setVariants(data);
+        setBatches(res.data ?? []);
         setTotal(res.total ?? 0);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [page, catFilter, typeFilter, sizeFilter, colorFilter, search, statusFilter]);
+  }, [page, catFilter, search]);
 
-  useEffect(() => { fetchVariants(); }, [fetchVariants]);
+  useEffect(() => { fetchBatches(); }, [fetchBatches]);
 
   const handleFilter = (fn: () => void) => { fn(); setPage(1); };
 
-  const handleQuickSubmit = async (variantId: string, qty: number, note: string) => {
+  const handleQuickSubmit = async (variantId: string, movementId: string, qty: number, reason: string) => {
     try {
-      await api.adjust({ variantId, adjustDirection: "add", qty, reason: note || "Quick adjustment" });
-      setSnackbar(`Stock updated.`);
-      fetchVariants();
+      const mode = quickAction?.mode ?? "reduce";
+      await api.adjust({
+        variantId,
+        adjustDirection: mode,
+        qty,
+        reason,
+        movementId,
+      });
+      setSnackbar("Stock updated.");
+      fetchBatches();
     } catch (err: any) {
       setSnackbar(err.message ?? "Failed.");
     }
   };
 
   return (
-    <PageContainer title="All Stock" description="Inventory overview">
+    <PageContainer title="All Stock" description="Inventory overview — batch level">
       <PageHeader
         title="All Stock"
-        subtitle={`${total} variants`}
+        subtitle={`${total} active batches`}
         actions={
           <Box sx={{ display: "flex", gap: 1 }}>
             <ToggleButtonGroup value={view} exclusive onChange={(_, v) => v && setView(v)} size="small">
@@ -208,32 +210,10 @@ export default function AllStockPage() {
         <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
           <Grid container spacing={1.5} alignItems="center">
             <Grid size={{ xs: 6, sm: 4, md: "auto" }} sx={{ minWidth: 130 }}>
-              <Select value={catFilter} onChange={(e) => handleFilter(() => { setCatFilter(e.target.value); setTypeFilter(""); })}
+              <Select value={catFilter} onChange={(e) => handleFilter(() => setCatFilter(e.target.value))}
                 size="small" fullWidth displayEmpty renderValue={(v) => v ? categories.find((c) => c._id === v)?.name : "Category"}>
                 <MenuItem value="">All Categories</MenuItem>
                 {categories.map((c) => <MenuItem key={c._id} value={c._id}>{c.name}</MenuItem>)}
-              </Select>
-            </Grid>
-            <Grid size={{ xs: 6, sm: 4, md: "auto" }} sx={{ minWidth: 130 }}>
-              <Select value={typeFilter} onChange={(e) => handleFilter(() => setTypeFilter(e.target.value))}
-                size="small" fullWidth displayEmpty disabled={!catFilter}
-                renderValue={(v) => v ? productTypes.find((t) => t._id === v)?.name : "Type"}>
-                <MenuItem value="">All Types</MenuItem>
-                {productTypes.map((t) => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}
-              </Select>
-            </Grid>
-            <Grid size={{ xs: 6, sm: 4, md: "auto" }} sx={{ minWidth: 130 }}>
-              <Select value={colorFilter} onChange={(e) => handleFilter(() => setColorFilter(e.target.value))}
-                size="small" fullWidth displayEmpty renderValue={(v) => v ? colors.find((c) => c._id === v)?.name : "Color"}>
-                <MenuItem value="">All Colors</MenuItem>
-                {colors.map((c) => <MenuItem key={c._id} value={c._id}>{c.name}</MenuItem>)}
-              </Select>
-            </Grid>
-            <Grid size={{ xs: 6, sm: 4, md: "auto" }} sx={{ minWidth: 130 }}>
-              <Select value={statusFilter} onChange={(e) => handleFilter(() => setStatusFilter(e.target.value))}
-                size="small" fullWidth displayEmpty renderValue={(v) => v || "Status"}>
-                <MenuItem value="">All Statuses</MenuItem>
-                {["In Stock", "Low Stock", "Out of Stock"].map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
               </Select>
             </Grid>
             <Grid size={{ xs: 12, sm: 4, md: "auto" }}>
@@ -261,75 +241,93 @@ export default function AllStockPage() {
                       <TableCell sx={{ width: 48 }}>Img</TableCell>
                       <TableCell>Variant</TableCell>
                       <TableCell>SKU</TableCell>
-                      <TableCell align="center">In Stock</TableCell>
-                      <TableCell align="right">Cost Rs.</TableCell>
-                      <TableCell align="right">Sell Rs.</TableCell>
-                      <TableCell>Status</TableCell>
+                      <TableCell>Batch Date</TableCell>
+                      <TableCell align="center">Remaining</TableCell>
+                      <TableCell align="right">Cost/Unit</TableCell>
+                      <TableCell align="right">Sell/Unit</TableCell>
+                      <TableCell align="right">Batch Value</TableCell>
+                      <TableCell>Supplier</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {variants.map((v) => (
-                      <TableRow key={v._id} hover sx={{ "&:last-child td": { border: 0 } }}>
-                        <TableCell>
-                          {getPrimaryImageUrl(v) ? (
-                            <VariantImage
-                              src={getPrimaryImageUrl(v)}
-                              alt={v.sku}
-                              width={32}
-                              height={32}
-                              sx={{ width: 32, height: 32, objectFit: "cover", borderRadius: "8px" }}
-                            />
-                          ) : (
-                            <ImagePlaceholder width={32} height={32} />
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{v.productType?.name} — {v.color?.name}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {v.category?.name}{v.size !== "N/A" ? ` / ${v.size}` : ""}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="caption" sx={{ fontFamily: "monospace", color: "text.secondary" }}>{v.sku}</Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: v.status === "Out of Stock" ? "error.main" : v.status === "Low Stock" ? "warning.main" : "success.main" }}>
-                            {v.stockQty}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right"><Typography variant="body2">Rs. {v.costPrice?.toFixed(2)}</Typography></TableCell>
-                        <TableCell align="right"><Typography variant="body2" sx={{ fontWeight: 600 }}>Rs. {v.sellPrice?.toFixed(2)}</Typography></TableCell>
-                        <TableCell><StatusChip status={v.status} /></TableCell>
-                        <TableCell align="right">
-                          <Box sx={{ display: "flex", gap: 0.25, justifyContent: "flex-end" }}>
-                            <Tooltip title="Add stock">
-                              <IconButton size="small" sx={{ color: "success.main" }}
-                                onClick={() => setQuickAction({ variant: v, mode: "add" })}>
-                                <IconPlus size={15} stroke={2} />
-                              </IconButton>
+                    {batches.map((m) => {
+                      const v = m.variant as any;
+                      const remaining = m.qtyRemaining ?? 0;
+                      const total = getDisplayBatchTotal(m);
+                      const batchValue = remaining * (m.costPrice ?? 0);
+                      const pct = total > 0 ? remaining / total : 0;
+                      const chipColor = pct === 0 ? "default" : pct < 0.25 ? "error" : pct < 0.75 ? "warning" : "success";
+                      return (
+                        <TableRow key={m._id} hover sx={{ "&:last-child td": { border: 0 } }}>
+                          <TableCell>
+                            {v && getPrimaryImageUrl(v) ? (
+                              <VariantImage src={getPrimaryImageUrl(v)} alt={v?.sku} width={32} height={32}
+                                sx={{ width: 32, height: 32, objectFit: "cover", borderRadius: "8px" }} />
+                            ) : (
+                              <ImagePlaceholder width={32} height={32} />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{v?.productType?.name} — {v?.color?.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {v?.category?.name}{v?.size !== "N/A" ? ` / ${v?.size}` : ""}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="caption" sx={{ fontFamily: "monospace", color: "text.secondary" }}>{v?.sku}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="caption" color="text.secondary">{dayjs(m.createdAt).format("DD MMM YYYY")}</Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Tooltip title={`${remaining} of ${total} units remaining in this batch`}>
+                              <Chip label={`${remaining} / ${total}`} color={chipColor} size="small"
+                                sx={{ fontWeight: 600, fontSize: "0.7rem", minWidth: 60 }} />
                             </Tooltip>
-                            <Tooltip title="Reduce stock">
-                              <span>
-                                <IconButton size="small" sx={{ color: "error.main" }} disabled={v.stockQty === 0}
-                                  onClick={() => setQuickAction({ variant: v, mode: "reduce" })}>
-                                  <IconMinus size={15} stroke={2} />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2">Rs. {m.costPrice?.toFixed(2) ?? "—"}</Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>Rs. {m.sellPrice?.toFixed(2) ?? "—"}</Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>Rs. {batchValue.toFixed(2)}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="caption" color="text.secondary">{m.supplier || "—"}</Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Box sx={{ display: "flex", gap: 0.25, justifyContent: "flex-end" }}>
+                              <Tooltip title="Add to this batch">
+                                <IconButton size="small" sx={{ color: "success.main" }}
+                                  onClick={() => setQuickAction({ batch: m, mode: "add" })}>
+                                  <IconPlus size={15} stroke={2} />
                                 </IconButton>
-                              </span>
-                            </Tooltip>
-                            <Tooltip title="Stock history">
-                              <IconButton size="small" sx={{ color: "text.secondary" }}
-                                onClick={() => router.push(`/reports/stock-history?variant=${v._id}`)}>
-                                <IconHistory size={15} stroke={1.5} />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {variants.length === 0 && (
+                              </Tooltip>
+                              <Tooltip title="Reduce from this batch">
+                                <span>
+                                  <IconButton size="small" sx={{ color: "error.main" }} disabled={remaining === 0}
+                                    onClick={() => setQuickAction({ batch: m, mode: "reduce" })}>
+                                    <IconMinus size={15} stroke={2} />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                              <Tooltip title="Stock history">
+                                <IconButton size="small" sx={{ color: "text.secondary" }}
+                                  onClick={() => router.push(`/reports/stock-history?variant=${v?._id}`)}>
+                                  <IconHistory size={15} stroke={1.5} />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {batches.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={8} align="center" sx={{ py: 6, color: "text.secondary" }}>No variants match the current filters.</TableCell>
+                        <TableCell colSpan={10} align="center" sx={{ py: 6, color: "text.secondary" }}>No active batches match the current filters.</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -341,17 +339,17 @@ export default function AllStockPage() {
           {/* Grid view */}
           {view === "grid" && (
             <Grid container spacing={2}>
-              {variants.map((v) => (
-                <Grid key={v._id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                  <StockCard v={v}
-                    onAdd={() => setQuickAction({ variant: v, mode: "add" })}
-                    onReduce={() => setQuickAction({ variant: v, mode: "reduce" })}
+              {batches.map((m) => (
+                <Grid key={m._id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                  <BatchCard m={m}
+                    onAdd={() => setQuickAction({ batch: m, mode: "add" })}
+                    onReduce={() => setQuickAction({ batch: m, mode: "reduce" })}
                   />
                 </Grid>
               ))}
-              {variants.length === 0 && (
+              {batches.length === 0 && (
                 <Grid size={12}>
-                  <Box sx={{ py: 8, textAlign: "center", color: "text.secondary" }}>No variants match the current filters.</Box>
+                  <Box sx={{ py: 8, textAlign: "center", color: "text.secondary" }}>No active batches match the current filters.</Box>
                 </Grid>
               )}
             </Grid>
@@ -367,7 +365,7 @@ export default function AllStockPage() {
 
       {quickAction && (
         <QuickActionDialog
-          variant={quickAction.variant}
+          batch={quickAction.batch}
           mode={quickAction.mode}
           onClose={() => setQuickAction(null)}
           onSubmit={handleQuickSubmit}

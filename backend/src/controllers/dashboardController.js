@@ -22,9 +22,9 @@ const getStats = async (req, res, next) => {
       Variant.countDocuments({ isActive: true }),
       Variant.countDocuments({ isActive: true, $expr: { $lte: ['$stockQty', '$lowStockThreshold'] } }),
       Variant.countDocuments({ isActive: true, stockQty: 0 }),
-      Variant.aggregate([
-        { $match: { isActive: true } },
-        { $group: { _id: null, total: { $sum: { $multiply: ['$stockQty', '$costPrice'] } } } },
+      StockMovement.aggregate([
+        { $match: { type: 'IN', qtyRemaining: { $gt: 0 } } },
+        { $group: { _id: null, total: { $sum: { $multiply: ['$qtyRemaining', '$costPrice'] } } } },
       ]),
       Order.find({
         status: 'Completed',

@@ -16,6 +16,7 @@ const stockMovementSchema = new mongoose.Schema(
     notes: { type: String, default: '' },
     createdBy: { type: String, default: 'Admin' },
     qtyRemaining: { type: Number, default: null }, // For 'IN' movements: tracks remaining qty in batch for FIFO
+    sourceBatchId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockMovement', default: null }, // For ADJUST: which batch was targeted
   },
   { timestamps: true }
 );

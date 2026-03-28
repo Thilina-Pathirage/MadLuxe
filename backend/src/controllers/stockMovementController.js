@@ -101,13 +101,30 @@ const stockIn = async (req, res, next) => {
 
 const adjust = async (req, res, next) => {
   try {
-    const { variantId, adjustDirection, qty, reason, notes } = req.body;
+    const { variantId, adjustDirection, qty, reason, notes, movementId } = req.body;
 
     if (!reason || reason.trim() === '') return error(res, 'Reason is required for adjustments', 400);
     if (!qty || qty < 1) return error(res, 'Quantity must be at least 1', 400);
 
     const variant = await Variant.findById(variantId);
     if (!variant) return error(res, 'Variant not found', 404);
+
+    // Batch-level adjustment when movementId is provided
+    if (movementId) {
+      const batch = await StockMovement.findById(movementId);
+      if (!batch) return error(res, 'Batch not found', 404);
+      if (batch.type !== 'IN') return error(res, 'Can only adjust IN-type batches', 400);
+      if (batch.variant.toString() !== variantId) return error(res, 'Batch does not belong to this variant', 400);
+
+      if (adjustDirection === 'reduce') {
+        if (batch.qtyRemaining < qty) {
+          return error(res, `Adjustment exceeds batch remaining quantity (${batch.qtyRemaining} units)`, 400);
+        }
+        await StockMovement.findByIdAndUpdate(movementId, { $inc: { qtyRemaining: -qty } });
+      } else {
+        await StockMovement.findByIdAndUpdate(movementId, { $inc: { qtyRemaining: qty } });
+      }
+    }
 
     const qtyBefore = variant.stockQty;
     const delta = adjustDirection === 'reduce' ? -qty : qty;
@@ -130,6 +147,7 @@ const adjust = async (req, res, next) => {
       qtyAfter,
       reason,
       notes: notes || '',
+      sourceBatchId: movementId || null,
     });
 
     return success(res, { movement, updatedVariant }, 'Stock adjusted', 201);
@@ -138,4 +156,49 @@ const adjust = async (req, res, next) => {
   }
 };
 
-module.exports = { getAll, stockIn, adjust };
+const getActiveBatches = async (req, res, next) => {
+  try {
+    const { variant, category, search, page = 1, limit = 25 } = req.query;
+    const filter = { type: 'IN', qtyRemaining: { $gt: 0 } };
+
+    if (variant) filter.variant = variant;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const populateOpts = [
+      { path: 'variant', populate: [
+        { path: 'category', select: 'name' },
+        { path: 'productType', select: 'name' },
+        { path: 'color', select: 'name hexCode' },
+      ], select: 'sku size images stockQty costPrice sellPrice lowStockThreshold isActive' },
+    ];
+
+    let data = await StockMovement.find(filter)
+      .populate(populateOpts)
+      .select('-__v')
+      .sort({ createdAt: -1 });
+
+    // Post-populate filters
+    data = data.filter((m) => m.variant && m.variant.isActive !== false);
+    if (category) {
+      data = data.filter((m) => m.variant.category && m.variant.category._id.toString() === category);
+    }
+    if (search) {
+      const q = search.toLowerCase();
+      data = data.filter((m) => m.variant.sku && m.variant.sku.toLowerCase().includes(q));
+    }
+
+    const total = data.length;
+    const paginated = data.slice(skip, skip + parseInt(limit));
+
+    return success(res, {
+      data: paginated,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { getAll, stockIn, adjust, getActiveBatches };

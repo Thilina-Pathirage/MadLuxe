@@ -13,8 +13,54 @@ import PageContainer from "@/app/(DashboardLayout)/components/container/PageCont
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
-import { api } from "@/lib/api";
+import OrderBillDialog from "@/components/madlaxue/shared/OrderBillDialog";
+import { api, Order, StockMovement } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
+import dayjs from "dayjs";
+
+// FIFO price calculation — mirrors backend allocation logic
+function calcFifoPrice(batches: StockMovement[], qty: number) {
+  let remaining = qty;
+  let totalPrice = 0;
+  const allocations: { date: string; qty: number; sellPrice: number }[] = [];
+
+  for (const b of batches) {
+    if (remaining <= 0) break;
+    const sell = b.sellPrice ?? 0;
+    const take = Math.min(remaining, b.qtyRemaining ?? 0);
+    if (take <= 0) continue;
+    totalPrice += take * sell;
+    allocations.push({ date: b.createdAt, qty: take, sellPrice: sell });
+    remaining -= take;
+  }
+
+  const totalAllocated = qty - remaining;
+  const avgUnitPrice = totalAllocated > 0 ? Math.round((totalPrice / totalAllocated) * 100) / 100 : 0;
+  return { totalPrice: Math.round(totalPrice * 100) / 100, avgUnitPrice, allocations, fulfilled: remaining <= 0 };
+}
+
+function reserveFifoBatches(batches: StockMovement[], reservedQty: number) {
+  let remainingToReserve = reservedQty;
+
+  return batches.map((batch) => {
+    const available = batch.qtyRemaining ?? 0;
+    const reservedFromBatch = Math.min(remainingToReserve, available);
+    remainingToReserve -= reservedFromBatch;
+
+    return {
+      ...batch,
+      qtyRemaining: available - reservedFromBatch,
+    };
+  });
+}
+
+function sortFifoBatches(batches: StockMovement[]) {
+  return [...batches].sort((left, right) => {
+    const timeDiff = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+    if (timeDiff !== 0) return timeDiff;
+    return left._id.localeCompare(right._id);
+  });
+}
 
 interface LineItem {
   variantId: string;
@@ -61,6 +107,8 @@ export default function NewOrderPage() {
   // Variant lookup
   const [matchedVariant, setMatchedVariant] = useState<any | null>(null);
   const [lookingUp, setLookingUp]           = useState(false);
+  const [variantBatches, setVariantBatches] = useState<StockMovement[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
 
   // Order lines
   const [lines, setLines] = useState<LineItem[]>([]);
@@ -84,6 +132,7 @@ export default function NewOrderPage() {
   const [submitting, setSubmitting] = useState(false);
   const [snackMsg, setSnackMsg]     = useState("");
   const [snackSeverity, setSnackSeverity] = useState<AlertColor>("success");
+  const [billOrder, setBillOrder]   = useState<Order | null>(null);
 
   // Load categories + colors on mount
   useEffect(() => {
@@ -109,6 +158,16 @@ export default function NewOrderPage() {
       .finally(() => setLookingUp(false));
   }, [catId, typeId, size, colorId]);
 
+  // Fetch active batches when variant is matched
+  useEffect(() => {
+    if (!matchedVariant) { setVariantBatches([]); setLoadingBatches(false); return; }
+    setLoadingBatches(true);
+    api.getActiveBatches({ variant: matchedVariant._id, limit: "50" })
+      .then((r) => setVariantBatches(r.data ?? []))
+      .catch(() => setVariantBatches([]))
+      .finally(() => setLoadingBatches(false));
+  }, [matchedVariant]);
+
   const selectedType = productTypes.find((t) => t._id === typeId);
   const sizeOptions  = selectedType?.hasSizes ? selectedType.sizes : ["N/A"];
 
@@ -130,9 +189,18 @@ export default function NewOrderPage() {
 
   const total = Math.max(0, subtotalAfterItemDiscount - couponDiscount - manualDiscountAmount);
 
-  const matchedStockQty = matchedVariant ? Number(matchedVariant.stockQty) : null;
-  const matchedStatus = String(matchedVariant?.status ?? "").toLowerCase();
-  const canAddItem = !!matchedVariant && matchedStockQty !== null && addQty > 0 && matchedStockQty > 0;
+  // Use batch-level total instead of variant-level stockQty, adjusted for draft reservations
+  const reservedQtyForMatchedVariant = matchedVariant
+    ? lines.find((line) => line.variantId === matchedVariant._id)?.qty ?? 0
+    : 0;
+  const fifoBatches = sortFifoBatches(variantBatches);
+  const previewBatches = reserveFifoBatches(fifoBatches, reservedQtyForMatchedVariant);
+  const batchTotalQty = previewBatches.reduce((s, b) => s + (b.qtyRemaining ?? 0), 0);
+  const matchedStockQty = matchedVariant ? batchTotalQty : null;
+  const fifoResult = matchedVariant && previewBatches.length > 0
+    ? calcFifoPrice(previewBatches, addQty)
+    : null;
+  const canAddItem = !!matchedVariant && !loadingBatches && matchedStockQty !== null && addQty > 0 && matchedStockQty > 0;
   const stockWarning = matchedStockQty !== null && matchedStockQty > 0 && addQty > matchedStockQty
     ? `Only ${matchedStockQty} units in stock.`
     : "";
@@ -140,9 +208,10 @@ export default function NewOrderPage() {
   const isOutOfStockSelection =
     hasCompleteVariantSelection &&
     !lookingUp &&
+    !loadingBatches &&
     !!matchedVariant &&
     matchedStockQty !== null &&
-    (matchedStockQty <= 0 || matchedStatus === "out of stock");
+    matchedStockQty <= 0;
   const isUnavailableSelection = hasCompleteVariantSelection && !lookingUp && !matchedVariant;
   const addDisabledReason =
     isOutOfStockSelection || isUnavailableSelection
@@ -151,13 +220,30 @@ export default function NewOrderPage() {
 
   const handleAddLine = () => {
     if (!matchedVariant) return;
+
+    if (!fifoResult?.fulfilled) {
+      setSnackSeverity("error");
+      setSnackMsg("Not enough stock available for this item.");
+      return;
+    }
+
     const label = formatVariantLabel(matchedVariant);
+    const unitPrice = fifoResult?.avgUnitPrice ?? matchedVariant.sellPrice;
     const existing = lines.findIndex((l) => l.variantId === matchedVariant._id);
     if (existing >= 0) {
+      // Recalculate FIFO price for combined qty
+      const newQty = lines[existing].qty + addQty;
+      const combined = calcFifoPrice(fifoBatches, newQty);
+      if (!combined.fulfilled) {
+        setSnackSeverity("error");
+        setSnackMsg("Not enough stock available for this item.");
+        return;
+      }
+      const newUnitPrice = combined.avgUnitPrice || lines[existing].unitPrice;
       setLines((prev) =>
         prev.map((l, i) =>
           i === existing
-            ? { ...l, qty: l.qty + addQty, lineTotal: (l.qty + addQty) * l.unitPrice }
+            ? { ...l, qty: newQty, unitPrice: newUnitPrice, lineTotal: newQty * newUnitPrice }
             : l
         )
       );
@@ -167,8 +253,8 @@ export default function NewOrderPage() {
         variantLabel: label,
         imageUrl: getPrimaryImageUrl(matchedVariant) ?? undefined,
         qty: addQty,
-        unitPrice: matchedVariant.sellPrice,
-        lineTotal: addQty * matchedVariant.sellPrice,
+        unitPrice,
+        lineTotal: addQty * unitPrice,
         discount: addDiscount,
         discountType: addDiscountType,
       }]);
@@ -256,6 +342,8 @@ export default function NewOrderPage() {
         paymentMethod,
         deliveryFee,
       });
+      // Capture order data before resetting form
+      setBillOrder(res.data ?? null);
       setSnackSeverity("success");
       setSnackMsg(`Order ${res.data?.orderRef ?? ""} confirmed! Total: Rs.${total.toFixed(2)}`);
       // Reset all form state
@@ -264,7 +352,6 @@ export default function NewOrderPage() {
       setCouponSuccess(""); setCouponError("");
       setManualDiscount(0); setManualDiscountType("fixed");
       setPaymentMethod("BankTransfer"); setDeliveryFee(0);
-      setTimeout(() => router.push("/orders/all-orders"), 1500);
     } catch (err: any) {
       setSnackSeverity("error");
       setSnackMsg(err.message ?? "Failed to create order.");
@@ -396,10 +483,67 @@ export default function NewOrderPage() {
               {stockWarning && (
                 <Alert severity="warning" sx={{ mt: 1.5 }}>{stockWarning}</Alert>
               )}
-              {matchedVariant && matchedStockQty !== null && matchedStockQty > 0 && !stockWarning && (
+              {matchedVariant && previewBatches.length > 0 && !stockWarning && (
                 <Box sx={{ mt: 1.5 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {formatVariantLabel(matchedVariant)} — {matchedStockQty} in stock — Rs.{matchedVariant.sellPrice.toFixed(2)} each
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    {formatVariantLabel(matchedVariant)} — {batchTotalQty} in stock
+                  </Typography>
+                  <TableContainer sx={{ mb: 1 }}>
+                    <Table size="small" sx={{ "& td, & th": { py: 0.5, px: 1, fontSize: "0.75rem" } }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Batch</TableCell>
+                          <TableCell align="center">Available</TableCell>
+                          <TableCell align="right">Sell Price</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {previewBatches.map((b) => (
+                          <TableRow key={b._id}>
+                            <TableCell>
+                              <Typography variant="caption" color="text.secondary">
+                                {dayjs(b.createdAt).format("DD MMM YYYY")}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Typography variant="caption">{b.qtyRemaining ?? 0}</Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                Rs.{(b.sellPrice ?? 0).toFixed(2)}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  {fifoResult && addQty > 0 && fifoResult.fulfilled && (
+                    <Typography variant="caption" color="text.secondary">
+                      For {addQty} unit{addQty > 1 ? "s" : ""}:{" "}
+                      {fifoResult.allocations.map((a, i) => (
+                        <span key={i}>
+                          {i > 0 ? " + " : ""}{a.qty} × Rs.{a.sellPrice.toFixed(2)}
+                        </span>
+                      ))}
+                      {" "}= <strong>Rs.{fifoResult.totalPrice.toFixed(2)}</strong>
+                      {fifoResult.allocations.length > 1 && (
+                        <> (avg Rs.{fifoResult.avgUnitPrice.toFixed(2)}/unit)</>
+                      )}
+                    </Typography>
+                  )}
+                </Box>
+              )}
+              {matchedVariant && !lookingUp && loadingBatches && (
+                <Box sx={{ mt: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                  <CircularProgress size={14} />
+                  <Typography variant="caption" color="text.secondary">Loading stock batches…</Typography>
+                </Box>
+              )}
+              {matchedVariant && !loadingBatches && matchedStockQty === 0 && variantBatches.length === 0 && !lookingUp && (
+                <Box sx={{ mt: 1.5 }}>
+                  <Typography variant="caption" color="error">
+                    {formatVariantLabel(matchedVariant)} — No stock available
                   </Typography>
                 </Box>
               )}
@@ -633,6 +777,14 @@ export default function NewOrderPage() {
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
         <Alert severity={snackSeverity} variant="filled" onClose={() => setSnackMsg("")}>{snackMsg}</Alert>
       </Snackbar>
+
+      {billOrder && (
+        <OrderBillDialog
+          open={!!billOrder}
+          order={billOrder}
+          onClose={() => { setBillOrder(null); router.push("/orders/all-orders"); }}
+        />
+      )}
     </PageContainer>
   );
 }

@@ -133,6 +133,8 @@ const create = async (req, res, next) => {
         qtyBefore: 0,
         qtyAfter: parsedStockQty,
         costPrice: parsedCostPrice,
+        sellPrice: parsedSellPrice,
+        qtyRemaining: parsedStockQty,
         reason: 'Initial stock',
       });
     }
