@@ -74,6 +74,7 @@ const Menuitems = [
     title: "Settings",
     icon: IconSettings,
     children: [
+      { id: uniqueId(), title: "Manage Website",  href: "/portal/settings/manage-website" },
       { id: uniqueId(), title: "Product Config",   href: "/portal/settings/product-config" },
       { id: uniqueId(), title: "General Settings", href: "/portal/settings/general"        },
     ],

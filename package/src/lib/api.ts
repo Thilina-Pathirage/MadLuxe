@@ -210,6 +210,28 @@ export interface GeneralSettings {
   defaultDeliveryFee: number;
 }
 
+export interface ImageAsset {
+  fileId: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  url: string;
+}
+
+export interface WebsiteHeroSlide {
+  _id?: string;
+  title: string;
+  subtitle: string;
+  image?: ImageAsset | null;
+  sortOrder: number;
+}
+
+export interface WebsiteSettings {
+  _id?: string;
+  key?: string;
+  heroSlides: WebsiteHeroSlide[];
+}
+
 export interface ManualFinanceEntry {
   _id: string;
   type: 'income' | 'expense';
@@ -241,6 +263,76 @@ export interface DashboardStats {
   recentMovements: unknown[];
   topSelling: { variant: Variant; totalQtySold: number; totalRevenue: number }[];
 }
+
+export interface PublicVariant {
+  _id: string;
+  sku: string;
+  category: PopulatedRef;
+  productType: PopulatedRef;
+  color: ColorRef;
+  size: string;
+  sellPrice: number;
+  stockQty: number;
+  status: 'In Stock' | 'Low Stock' | 'Out of Stock';
+  images: VariantImage[];
+  createdAt: string;
+}
+
+export interface PublicSettings {
+  currencyCode: 'LKR' | 'USD' | 'EUR' | 'GBP';
+  timezone: string;
+  defaultDeliveryFee: number;
+}
+
+export interface PublicTopSellingItem {
+  variant: Variant;
+  totalQtySold: number;
+  totalRevenue: number;
+}
+
+export interface Category {
+  _id: string;
+  name: string;
+  description?: string;
+  landingImage?: {
+    fileId: string;
+    filename: string;
+    contentType: string;
+    size: number;
+    url: string;
+  };
+  isActive: boolean;
+}
+
+// ─── Public API (no auth) ─────────────────────────────────────────────────
+
+async function publicRequest<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { message?: string }).message ?? `API error ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export const publicApi = {
+  getVariants: (params?: Record<string, string>) =>
+    publicRequest<PaginatedResponse<PublicVariant>>(
+      '/public/variants?' + new URLSearchParams(params ?? {})
+    ),
+  getVariantById: (id: string) =>
+    publicRequest<ApiResponse<PublicVariant>>(`/public/variants/${id}`),
+  getProductTypes: (categoryId?: string) =>
+    publicRequest<ApiResponse<Array<{ _id: string; name: string; category: PopulatedRef }>>>(
+      '/public/product-types' + (categoryId ? `?category=${categoryId}` : '')
+    ),
+  getCategories: () =>
+    publicRequest<ApiResponse<Category[]>>('/public/categories'),
+  getSettings: () =>
+    publicRequest<ApiResponse<PublicSettings>>('/public/settings'),
+  getTopSelling: (limit = 6) =>
+    publicRequest<ApiResponse<PublicTopSellingItem[]>>(`/public/top-selling?limit=${limit}`),
+};
 
 // ─── API Methods ──────────────────────────────────────────────────────────
 
@@ -384,6 +476,21 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+  getWebsiteSettings: () =>
+    request<ApiResponse<WebsiteSettings>>('/settings/website'),
+  updateWebsiteSettings: (data: Pick<WebsiteSettings, 'heroSlides'>) =>
+    request<ApiResponse<WebsiteSettings>>('/settings/website', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  uploadWebsiteHeroImage: (file: File) => {
+    const form = new FormData();
+    form.append('image', file);
+    return request<ApiResponse<ImageAsset>>('/settings/website/hero-image', {
+      method: 'POST',
+      body: form,
+    });
+  },
 
   // Categories
   getCategories: () => request<ApiResponse<unknown[]>>('/categories'),
@@ -393,6 +500,18 @@ export const api = {
     request<ApiResponse<unknown>>(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCategory: (id: string) =>
     request<ApiResponse<unknown>>(`/categories/${id}`, { method: 'DELETE' }),
+  uploadCategoryLandingImage: (categoryId: string, file: File) => {
+    const form = new FormData();
+    form.append('image', file);
+    return request<ApiResponse<unknown>>(`/categories/${categoryId}/landing-image`, {
+      method: 'POST',
+      body: form,
+    });
+  },
+  deleteCategoryLandingImage: (categoryId: string) =>
+    request<ApiResponse<unknown>>(`/categories/${categoryId}/landing-image`, {
+      method: 'DELETE',
+    }),
 
   // Product Types
   getProductTypes: (categoryId?: string) =>

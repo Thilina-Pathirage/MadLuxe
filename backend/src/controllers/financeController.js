@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const ManualFinanceEntry = require('../models/ManualFinanceEntry');
 const { success, error } = require('../utils/apiResponse');
 const { getResolvedGeneralSettings } = require('../services/generalSettingsService');
+const { getTopSellingVariants } = require('../services/topSellingService');
 const { dayjs, formatBusinessBucketLabel, resolveBusinessDateRange } = require('../utils/businessTime');
 
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -278,48 +279,19 @@ const getTopSelling = async (req, res, next) => {
     const { limit = 5, period, month } = req.query;
     const generalSettings = await getResolvedGeneralSettings();
 
-    let dateFilter = {};
+    let dateFrom;
+    let dateTo;
     if (period === 'monthly' && month) {
-      const { dateFrom, dateTo } = resolveBusinessDateRange({
+      const monthlyRange = resolveBusinessDateRange({
         period: 'daily',
         month,
         timezone: generalSettings.timezone,
       });
-      dateFilter = {
-        createdAt: {
-          $gte: dateFrom,
-          $lte: dateTo,
-        },
-      };
+      dateFrom = monthlyRange.dateFrom;
+      dateTo = monthlyRange.dateTo;
     }
 
-    const orders = await Order.find({ status: 'Completed', ...dateFilter }).select('items');
-
-    const map = {};
-    for (const order of orders) {
-      for (const item of order.items) {
-        const id = item.variant.toString();
-        if (!map[id]) map[id] = { variantId: id, totalQtySold: 0, totalRevenue: 0 };
-        map[id].totalQtySold += item.qty;
-        map[id].totalRevenue += item.lineFinal;
-      }
-    }
-
-    const sorted = Object.values(map)
-      .sort((a, b) => b.totalQtySold - a.totalQtySold)
-      .slice(0, parseInt(limit));
-
-    const Variant = require('../models/Variant');
-    const populated = await Promise.all(
-      sorted.map(async (item) => {
-        const variant = await Variant.findById(item.variantId)
-          .populate('category', 'name')
-          .populate('productType', 'name')
-          .populate('color', 'name hexCode')
-          .select('-__v');
-        return { variant, totalQtySold: item.totalQtySold, totalRevenue: round2(item.totalRevenue) };
-      })
-    );
+    const populated = await getTopSellingVariants({ limit, dateFrom, dateTo });
 
     return success(res, { data: populated });
   } catch (err) {

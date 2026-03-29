@@ -1,7 +1,9 @@
 const express = require('express');
 const { body } = require('express-validator');
-const ctrl = require('../controllers/generalSettingsController');
+const generalCtrl = require('../controllers/generalSettingsController');
+const websiteCtrl = require('../controllers/websiteSettingsController');
 const validate = require('../middleware/validate');
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -14,7 +16,7 @@ const isValidTimezone = (value) => {
   }
 };
 
-router.get('/general', ctrl.getGeneralSettings);
+router.get('/general', generalCtrl.getGeneralSettings);
 router.put(
   '/general',
   [
@@ -32,7 +34,32 @@ router.put(
       .withMessage('Default delivery fee must be >= 0'),
   ],
   validate,
-  ctrl.updateGeneralSettings
+  generalCtrl.updateGeneralSettings
 );
+
+router.get('/website', websiteCtrl.getWebsiteSettings);
+router.put(
+  '/website',
+  [
+    body('heroSlides')
+      .isArray({ min: 1, max: 6 })
+      .withMessage('heroSlides must contain between 1 and 6 slides'),
+    body('heroSlides.*.title')
+      .trim()
+      .notEmpty()
+      .withMessage('Each slide title is required'),
+    body('heroSlides.*.subtitle')
+      .trim()
+      .notEmpty()
+      .withMessage('Each slide subtitle is required'),
+    body('heroSlides.*.sortOrder')
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage('sortOrder must be a non-negative integer'),
+  ],
+  validate,
+  websiteCtrl.updateWebsiteSettings
+);
+router.post('/website/hero-image', upload.single('image'), websiteCtrl.uploadHeroImage);
 
 module.exports = router;

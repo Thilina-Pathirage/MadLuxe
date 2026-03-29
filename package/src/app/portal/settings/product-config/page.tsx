@@ -7,11 +7,15 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar,
   Tooltip, CircularProgress, Switch, FormControlLabel,
 } from "@mui/material";
-import { IconEdit, IconTrash, IconPlus, IconCheck } from "@tabler/icons-react";
+import { IconEdit, IconTrash, IconCheck, IconPhoto } from "@tabler/icons-react";
 import PageContainer from "@/app/portal/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ConfirmDialog from "@/components/madlaxue/shared/ConfirmDialog";
 import { api } from "@/lib/api";
+import { normalizeVariantImageUrl } from "@/utils/variantImage";
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 /* ── Inline add row ── */
 function InlineAdd({ onSave, placeholder, loading }: { onSave: (v: string) => void; placeholder?: string; loading?: boolean }) {
@@ -61,12 +65,25 @@ export default function ProductConfigPage() {
 
   /* ── New color ── */
   const [newColorHex, setNewColorHex] = useState("#cccccc");
+  const [categoryImageDialog, setCategoryImageDialog] = useState<{
+    category: any;
+    pendingFile: File | null;
+    previewUrl: string | null;
+  } | null>(null);
+  const [savingCategoryImage, setSavingCategoryImage] = useState(false);
+  const [categoryImageError, setCategoryImageError] = useState("");
 
   const [snackMsg, setSnackMsg] = useState("");
   const [snackSeverity, setSnackSeverity] = useState<"success" | "error">("success");
 
   const notify = (msg: string, sev: "success" | "error" = "success") => {
     setSnackMsg(msg); setSnackSeverity(sev);
+  };
+
+  const closeCategoryImageDialog = () => {
+    if (categoryImageDialog?.previewUrl) URL.revokeObjectURL(categoryImageDialog.previewUrl);
+    setCategoryImageDialog(null);
+    setCategoryImageError("");
   };
 
   /* ── Loaders ── */
@@ -106,6 +123,12 @@ export default function ProductConfigPage() {
 
   useEffect(() => { fetchCategories(); fetchColors(); }, [fetchCategories, fetchColors]);
   useEffect(() => { fetchTypes(); }, [fetchTypes]);
+  useEffect(
+    () => () => {
+      if (categoryImageDialog?.previewUrl) URL.revokeObjectURL(categoryImageDialog.previewUrl);
+    },
+    [categoryImageDialog?.previewUrl]
+  );
 
   /* ── Category CRUD ── */
   const addCategory = async (name: string) => {
@@ -181,6 +204,94 @@ export default function ProductConfigPage() {
   const selectedType = productTypes.find((t) => t._id === selTypeId);
   const fixedCardSx = { height: 400, display: "flex", flexDirection: "column" } as const;
   const scrollBodySx = { flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5 } as const;
+  const activeCategoryImageUrl = categoryImageDialog
+    ? normalizeVariantImageUrl(categoryImageDialog.previewUrl ?? categoryImageDialog.category?.landingImage?.url)
+    : null;
+
+  const handleCategoryImagePick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !categoryImageDialog) return;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setCategoryImageError("Only PNG, JPG and WebP images are allowed.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setCategoryImageError("Image must be 5MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+
+    if (categoryImageDialog.previewUrl) URL.revokeObjectURL(categoryImageDialog.previewUrl);
+
+    setCategoryImageDialog((prev) =>
+      prev
+        ? {
+            ...prev,
+            pendingFile: file,
+            previewUrl: URL.createObjectURL(file),
+          }
+        : prev
+    );
+    setCategoryImageError("");
+    event.target.value = "";
+  };
+
+  const handleCategoryImageSave = async () => {
+    if (!categoryImageDialog?.pendingFile) return;
+
+    setSavingCategoryImage(true);
+    try {
+      const response: any = await api.uploadCategoryLandingImage(
+        categoryImageDialog.category._id,
+        categoryImageDialog.pendingFile
+      );
+      if (categoryImageDialog.previewUrl) URL.revokeObjectURL(categoryImageDialog.previewUrl);
+
+      setCategoryImageDialog((prev) =>
+        prev
+          ? {
+              category: response.data ?? prev.category,
+              pendingFile: null,
+              previewUrl: null,
+            }
+          : prev
+      );
+      notify(`Landing image updated for "${categoryImageDialog.category.name}".`);
+      fetchCategories();
+    } catch (err: any) {
+      setCategoryImageError(err.message ?? "Failed to upload category image.");
+    } finally {
+      setSavingCategoryImage(false);
+    }
+  };
+
+  const handleCategoryImageRemove = async () => {
+    if (!categoryImageDialog) return;
+
+    setSavingCategoryImage(true);
+    try {
+      const response: any = await api.deleteCategoryLandingImage(categoryImageDialog.category._id);
+      if (categoryImageDialog.previewUrl) URL.revokeObjectURL(categoryImageDialog.previewUrl);
+      setCategoryImageDialog((prev) =>
+        prev
+          ? {
+              category: response.data ?? prev.category,
+              pendingFile: null,
+              previewUrl: null,
+            }
+          : prev
+      );
+      setCategoryImageError("");
+      notify(`Landing image removed from "${categoryImageDialog.category.name}".`);
+      fetchCategories();
+    } catch (err: any) {
+      setCategoryImageError(err.message ?? "Failed to remove category image.");
+    } finally {
+      setSavingCategoryImage(false);
+    }
+  };
 
   return (
     <PageContainer title="Product Config" description="Manage product dropdown values">
@@ -204,6 +315,21 @@ export default function ProductConfigPage() {
                           primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{c.name}</Typography>}
                         />
                         <ListItemSecondaryAction>
+                          <Tooltip title="Landing image">
+                            <IconButton
+                              size="small"
+                              sx={{ mr: 0.5 }}
+                              onClick={() =>
+                                setCategoryImageDialog({
+                                  category: c,
+                                  pendingFile: null,
+                                  previewUrl: null,
+                                })
+                              }
+                            >
+                              <IconPhoto size={14} stroke={1.5} />
+                            </IconButton>
+                          </Tooltip>
                           <IconButton size="small" sx={{ mr: 0.5 }}
                             onClick={() => setEditDialog({ section: "category", id: c._id, name: c.name })}>
                             <IconEdit size={14} stroke={1.5} />
@@ -406,6 +532,89 @@ export default function ProductConfigPage() {
           </Card>
         </Grid>
       </Grid>
+
+      <Dialog open={!!categoryImageDialog} onClose={closeCategoryImageDialog} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>
+          Category Landing Image
+        </DialogTitle>
+        <DialogContent sx={{ pt: "12px !important" }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            {categoryImageDialog?.category?.name}
+          </Typography>
+
+          <Box
+            sx={{
+              width: "100%",
+              aspectRatio: "16 / 10",
+              borderRadius: "10px",
+              border: "1px dashed",
+              borderColor: "divider",
+              overflow: "hidden",
+              bgcolor: "grey.100",
+              display: "grid",
+              placeItems: "center",
+              mb: 1.5,
+            }}
+          >
+            {activeCategoryImageUrl ? (
+              <Box
+                component="img"
+                src={activeCategoryImageUrl}
+                alt={`${categoryImageDialog?.category?.name ?? "Category"} landing`}
+                sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <Typography variant="caption" color="text.disabled">
+                No image selected
+              </Typography>
+            )}
+          </Box>
+
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button component="label" variant="outlined" size="small" fullWidth disabled={savingCategoryImage}>
+              Choose Image
+              <input
+                hidden
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleCategoryImagePick}
+              />
+            </Button>
+            <Button
+              color="error"
+              variant="text"
+              size="small"
+              disabled={savingCategoryImage || !activeCategoryImageUrl}
+              onClick={handleCategoryImageRemove}
+            >
+              Remove
+            </Button>
+          </Box>
+
+          {(categoryImageError || savingCategoryImage) && (
+            <Box sx={{ mt: 1.25 }}>
+              {categoryImageError ? (
+                <Alert severity="error">{categoryImageError}</Alert>
+              ) : (
+                <Alert severity="info">Applying image changes...</Alert>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={closeCategoryImageDialog} variant="outlined" size="small" disabled={savingCategoryImage}>
+            Close
+          </Button>
+          <Button
+            onClick={handleCategoryImageSave}
+            variant="contained"
+            size="small"
+            disabled={!categoryImageDialog?.pendingFile || savingCategoryImage}
+          >
+            Save Image
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── Edit Dialog ── */}
       <Dialog open={!!editDialog} onClose={() => setEditDialog(null)} maxWidth="xs" fullWidth>

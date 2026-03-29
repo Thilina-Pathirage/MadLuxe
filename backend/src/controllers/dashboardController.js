@@ -3,6 +3,7 @@ const Order = require('../models/Order');
 const StockMovement = require('../models/StockMovement');
 const { success } = require('../utils/apiResponse');
 const { getResolvedGeneralSettings } = require('../services/generalSettingsService');
+const { getTopSellingVariants } = require('../services/topSellingService');
 const { getBusinessMonthRange } = require('../utils/businessTime');
 
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -50,37 +51,20 @@ const getStats = async (req, res, next) => {
 
     let monthRevenue = 0;
     let monthCost = 0;
-    const variantSalesMap = {};
 
     for (const order of monthOrders) {
       monthRevenue += order.total;
       for (const item of order.items) {
         monthCost += item.costPrice * item.qty;
-        const id = item.variant.toString();
-        if (!variantSalesMap[id]) variantSalesMap[id] = { qty: 0, revenue: 0 };
-        variantSalesMap[id].qty += item.qty;
-        variantSalesMap[id].revenue += item.lineFinal;
       }
     }
 
     const monthProfit = round2(monthRevenue - monthCost);
-
-    // Top 5 selling variants this month
-    const topIds = Object.entries(variantSalesMap)
-      .sort((a, b) => b[1].qty - a[1].qty)
-      .slice(0, 5)
-      .map(([id, stats]) => ({ id, ...stats }));
-
-    const topVariants = await Promise.all(
-      topIds.map(async ({ id, qty, revenue }) => {
-        const variant = await Variant.findById(id)
-          .populate('category', 'name')
-          .populate('productType', 'name')
-          .populate('color', 'name hexCode')
-          .select('-__v');
-        return { variant, totalQtySold: qty, totalRevenue: round2(revenue) };
-      })
-    );
+    const topVariants = await getTopSellingVariants({
+      limit: 5,
+      dateFrom: monthStart,
+      dateTo: monthEnd,
+    });
 
     return success(res, {
       data: {
