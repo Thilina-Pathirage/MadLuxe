@@ -7,9 +7,9 @@ import {
   FormControl, Table, TableHead, TableBody, TableRow, TableCell,
   TableContainer, Chip, Snackbar, CircularProgress,
 } from "@mui/material";
-import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api, StockMovement } from "@/lib/api";
 
 const REASONS = ["Damaged", "Lost", "Found", "Returned", "Recount", "Other"];
@@ -25,6 +25,7 @@ function mvLabel(m: any) {
 }
 
 export default function AdjustmentsPage() {
+  const { formatBusinessDate, formatCurrency } = useGeneralSettings();
   const [categories, setCategories]   = useState<any[]>([]);
   const [productTypes, setProductTypes] = useState<any[]>([]);
   const [colors, setColors]           = useState<any[]>([]);
@@ -227,7 +228,7 @@ export default function AdjustmentsPage() {
                                   <Radio size="small" checked={isSelected} onChange={() => setSelectedBatchId(b._id)} />
                                 </TableCell>
                                 <TableCell>
-                                  <Typography variant="caption">{dayjs(b.createdAt).format("DD MMM YYYY")}</Typography>
+                                  <Typography variant="caption">{formatBusinessDate(b.createdAt)}</Typography>
                                   {b.supplier && (
                                     <Typography variant="caption" color="text.secondary" display="block">{b.supplier}</Typography>
                                   )}
@@ -238,10 +239,10 @@ export default function AdjustmentsPage() {
                                     size="small" sx={{ fontWeight: 600, fontSize: "0.7rem" }} />
                                 </TableCell>
                                 <TableCell align="right">
-                                  <Typography variant="caption">Rs. {b.costPrice?.toFixed(2) ?? "—"}</Typography>
+                                  <Typography variant="caption">{formatCurrency(b.costPrice)}</Typography>
                                 </TableCell>
                                 <TableCell align="right">
-                                  <Typography variant="caption">Rs. {b.sellPrice?.toFixed(2) ?? "—"}</Typography>
+                                  <Typography variant="caption">{formatCurrency(b.sellPrice)}</Typography>
                                 </TableCell>
                               </TableRow>
                             );
@@ -285,7 +286,7 @@ export default function AdjustmentsPage() {
                                 <Radio size="small" checked={isSelected} onChange={() => setSelectedBatchId(isSelected ? "" : b._id)} />
                               </TableCell>
                               <TableCell>
-                                <Typography variant="caption">{dayjs(b.createdAt).format("DD MMM YYYY")}</Typography>
+                                <Typography variant="caption">{formatBusinessDate(b.createdAt)}</Typography>
                               </TableCell>
                               <TableCell align="center">
                                 <Chip label={`${remaining} / ${total}`}
@@ -293,10 +294,10 @@ export default function AdjustmentsPage() {
                                   size="small" sx={{ fontWeight: 600, fontSize: "0.7rem" }} />
                               </TableCell>
                               <TableCell align="right">
-                                <Typography variant="caption">Rs. {b.costPrice?.toFixed(2) ?? "—"}</Typography>
+                                <Typography variant="caption">{formatCurrency(b.costPrice)}</Typography>
                               </TableCell>
                               <TableCell align="right">
-                                <Typography variant="caption">Rs. {b.sellPrice?.toFixed(2) ?? "—"}</Typography>
+                                <Typography variant="caption">{formatCurrency(b.sellPrice)}</Typography>
                               </TableCell>
                             </TableRow>
                           );
@@ -368,7 +369,7 @@ export default function AdjustmentsPage() {
                           <TableRow key={m._id} hover sx={{ "&:last-child td": { border: 0 } }}>
                             <TableCell>
                               <Typography variant="caption" color="text.secondary">
-                                {dayjs(m.createdAt).format("DD MMM YYYY")}
+                                {formatBusinessDate(m.createdAt)}
                               </Typography>
                             </TableCell>
                             <TableCell>

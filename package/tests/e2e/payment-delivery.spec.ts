@@ -12,8 +12,8 @@ const TD = {
   colorHex: '#dbeafe',
   variant: { costPrice: 1200, sellPrice: 2000 },
   stock: { qty: 20, supplier: 'Supplier A' },
-  order1: { customerName: 'PayDel COD', phone: '0778000001', qty: 2 },
-  order2: { customerName: 'PayDel Bank', phone: '0778000002', qty: 3, deliveryFee: 450 },
+  order1: { customerName: 'PayDel COD', phone: '778000001', qty: 2, address: 'No. 1, Lake Drive, Colombo 05' },
+  order2: { customerName: 'PayDel Bank', phone: '778000002', qty: 3, deliveryFee: 450, address: 'No. 2, Galle Road, Colombo 03' },
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -85,6 +85,15 @@ async function apiGet(path: string, params?: Record<string, string>) {
     headers: { Authorization: `Bearer ${token}` },
   });
   expect(res.ok(), `GET ${path} failed: ${res.status()}`).toBeTruthy();
+  return res.json();
+}
+
+async function apiPut(path: string, data: Record<string, unknown>) {
+  const res = await apiCtx.put(`${API}${path}`, {
+    data,
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(res.ok(), `PUT ${path} failed: ${res.status()}`).toBeTruthy();
   return res.json();
 }
 
@@ -201,6 +210,13 @@ test.describe.serial('Payment & Delivery Flow', () => {
     expect(loginRes.ok(), 'Login failed').toBeTruthy();
     const body = await loginRes.json();
     token = body.token;
+
+    await apiPut('/settings/general', {
+      currencyCode: 'LKR',
+      timezone: 'Asia/Colombo',
+      defaultLowStockThreshold: 5,
+      defaultDeliveryFee: 300,
+    });
   });
 
   test.afterAll(async () => {
@@ -253,13 +269,17 @@ test.describe.serial('Payment & Delivery Flow', () => {
 
     await page.getByLabel('Customer Name').fill(TD.order1.customerName);
     await page.getByLabel('Phone').fill(TD.order1.phone);
+    await page.getByLabel('Address').fill(TD.order1.address);
+    await chooseSelectByLabel(page, 'Order Priority', 'Urgent');
 
     await addOrderLine(page, TD.order1.qty);
 
     const initialTotal = await getLineTotal(page);
     expect(initialTotal).toBe(expected.order1.revenue);
 
-    await expect(page.getByLabel('Delivery Fee')).toBeVisible();
+    const initialFeeInput = page.getByLabel('Delivery Fee');
+    await expect(initialFeeInput).toBeVisible();
+    await expect(initialFeeInput).toHaveValue('300');
     await expect(page.getByText('Customer Pays')).toBeVisible();
 
     await chooseSelectByLabel(page, 'Payment Method', 'COD (Cash on Delivery)');
@@ -283,6 +303,9 @@ test.describe.serial('Payment & Delivery Flow', () => {
     order1Ref = body.data.orderRef;
     order1Id = body.data._id;
 
+    await expect(page.getByText('Priority: Urgent')).toBeVisible();
+    await expect(page.getByText(TD.order1.address)).toBeVisible();
+    await page.getByRole('button', { name: 'Close' }).click();
     await page.waitForURL('**/orders/all-orders');
     await expect(page.getByRole('heading', { name: 'All Orders' })).toBeVisible();
   });
@@ -295,6 +318,7 @@ test.describe.serial('Payment & Delivery Flow', () => {
 
     await page.getByLabel('Customer Name').fill(TD.order2.customerName);
     await page.getByLabel('Phone').fill(TD.order2.phone);
+    await page.getByLabel('Address').fill(TD.order2.address);
 
     await addOrderLine(page, TD.order2.qty);
 
@@ -306,6 +330,7 @@ test.describe.serial('Payment & Delivery Flow', () => {
 
     const feeInput = page.getByLabel('Delivery Fee');
     await expect(feeInput).toBeVisible();
+    await expect(feeInput).toHaveValue('300');
     await feeInput.fill(String(TD.order2.deliveryFee));
     await feeInput.press('Enter');
     await expect(feeInput).toHaveValue(String(TD.order2.deliveryFee));
@@ -329,6 +354,7 @@ test.describe.serial('Payment & Delivery Flow', () => {
     order2Ref = body.data.orderRef;
     order2Id = body.data._id;
 
+    await page.getByRole('button', { name: 'Close' }).click();
     await page.waitForURL('**/orders/all-orders');
   });
 

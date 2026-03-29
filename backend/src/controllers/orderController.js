@@ -81,6 +81,8 @@ const create = async (req, res, next) => {
     const {
       customerName,
       customerPhone,
+      customerAddress,
+      customerSecondaryPhone,
       items: rawItems,
       couponCode,
       manualDiscount = 0,
@@ -92,6 +94,9 @@ const create = async (req, res, next) => {
 
     if (!rawItems || rawItems.length === 0) {
       return error(res, 'Order must contain at least one item', 400);
+    }
+    if (!customerAddress || !String(customerAddress).trim()) {
+      return error(res, 'Customer address is required', 400);
     }
 
     // --- Step 1 & 2: Validate all items and build line data ---
@@ -283,6 +288,8 @@ const create = async (req, res, next) => {
       orderRef,
       customerName: customerName || 'Walk-in Customer',
       customerPhone: customerPhone || '',
+      customerAddress: String(customerAddress).trim(),
+      customerSecondaryPhone: customerSecondaryPhone || '',
       items: orderItems,
       subtotal,
       itemDiscountAmount,

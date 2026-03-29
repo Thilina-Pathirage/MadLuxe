@@ -6,6 +6,7 @@ const generateSKU = require('../utils/generateSKU');
 const { success, error } = require('../utils/apiResponse');
 const { deleteFile } = require('../services/gridfs');
 const { uploadFilesForVariant } = require('../services/variantImageService');
+const { getResolvedGeneralSettings } = require('../services/generalSettingsService');
 
 const POPULATE_FIELDS = [
   { path: 'category', select: 'name' },
@@ -77,6 +78,7 @@ const create = async (req, res, next) => {
   let variant;
 
   try {
+    const generalSettings = await getResolvedGeneralSettings();
     const {
       categoryId,
       productTypeId,
@@ -93,7 +95,7 @@ const create = async (req, res, next) => {
     const parsedLowStockThreshold =
       lowStockThreshold !== undefined && lowStockThreshold !== ''
         ? Number(lowStockThreshold)
-        : 5;
+        : generalSettings.defaultLowStockThreshold;
     const parsedStockQty =
       stockQty !== undefined && stockQty !== ''
         ? Number(stockQty)

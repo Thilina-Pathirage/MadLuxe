@@ -8,7 +8,6 @@ import {
   Chip, Tooltip,
 } from "@mui/material";
 import { IconDownload } from "@tabler/icons-react";
-import dayjs from "dayjs";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
@@ -16,10 +15,10 @@ import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
 import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api, type StockMovement, type Variant } from "@/lib/api";
+import { getCurrencyOption } from "@/lib/generalSettings";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
-
-const today = dayjs().format("YYYY-MM-DD");
 const getDisplayBatchTotal = (m: StockMovement) => Math.max(m.qty ?? 0, m.qtyRemaining ?? 0);
 
 function mvLabel(m: any) {
@@ -35,6 +34,9 @@ export default function StockInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const prefillVariantId = searchParams.get("variantId") ?? "";
+  const { formatBusinessDate, formatCurrency, getBusinessToday, settings } = useGeneralSettings();
+  const currencySymbol = getCurrencyOption(settings.currencyCode).symbol;
+  const today = getBusinessToday();
 
   // Dropdown options
   const [categories, setCategories]   = useState<any[]>([]);
@@ -50,7 +52,7 @@ export default function StockInPage() {
   const [costUnit, setCostUnit] = useState("");
   const [sellUnit, setSellUnit] = useState("");
   const [supplier, setSupplier] = useState("");
-  const [date, setDate]       = useState(today);
+  const [date, setDate]       = useState(() => getBusinessToday());
   const [notes, setNotes]     = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -328,7 +330,7 @@ export default function StockInPage() {
                             <TableRow key={b._id}>
                               <TableCell>
                                 <Typography variant="caption" color="text.secondary">
-                                  {dayjs(b.createdAt).format("DD MMM YYYY")}
+                                  {formatBusinessDate(b.createdAt)}
                                 </Typography>
                               </TableCell>
                               <TableCell align="center">
@@ -341,12 +343,12 @@ export default function StockInPage() {
                               </TableCell>
                               <TableCell align="right">
                                 <Typography variant="caption">
-                                  Rs. {b.costPrice != null ? b.costPrice.toFixed(2) : "—"}
+                                  {formatCurrency(b.costPrice)}
                                 </Typography>
                               </TableCell>
                               <TableCell align="right">
                                 <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                  Rs. {b.sellPrice != null ? b.sellPrice.toFixed(2) : "—"}
+                                  {formatCurrency(b.sellPrice)}
                                 </Typography>
                               </TableCell>
                               <TableCell>
@@ -379,17 +381,17 @@ export default function StockInPage() {
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField label="Cost Price per Unit" type="number" value={costUnit} size="small" fullWidth required
                 onChange={(e) => setCostUnit(e.target.value)}
-                slotProps={{ input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> } }}
+                slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> } }}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField label="Sell Price per Unit" type="number" value={sellUnit} size="small" fullWidth
                 onChange={(e) => setSellUnit(e.target.value)}
-                slotProps={{ input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> } }}
+                slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> } }}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField label="Total Cost" value={totalCost === "—" ? "" : `Rs. ${totalCost}`}
+              <TextField label="Total Cost" value={totalCost === "—" ? "" : formatCurrency(Number(totalCost))}
                 size="small" fullWidth disabled placeholder="Auto-calculated" />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -454,7 +456,7 @@ export default function StockInPage() {
                   return (
                   <TableRow key={m._id} hover sx={{ "&:last-child td": { border: 0 } }}>
                     <TableCell>
-                      <Typography variant="caption" color="text.secondary">{dayjs(m.createdAt).format("DD MMM YYYY")}</Typography>
+                      <Typography variant="caption" color="text.secondary">{formatBusinessDate(m.createdAt)}</Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>{mvLabel(m)}</Typography>
@@ -473,14 +475,14 @@ export default function StockInPage() {
                       </Tooltip>
                     </TableCell>
                     <TableCell align="right">
-                      <Typography variant="body2">{m.costPrice != null ? `Rs. ${m.costPrice.toFixed(2)}` : "—"}</Typography>
+                      <Typography variant="body2">{formatCurrency(m.costPrice)}</Typography>
                     </TableCell>
                     <TableCell align="right">
-                      <Typography variant="body2">{m.sellPrice != null ? `Rs. ${m.sellPrice.toFixed(2)}` : "—"}</Typography>
+                      <Typography variant="body2">{formatCurrency(m.sellPrice)}</Typography>
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {m.costPrice != null ? `Rs. ${(m.qty * m.costPrice).toFixed(2)}` : "—"}
+                        {m.costPrice != null ? formatCurrency(m.qty * m.costPrice) : "—"}
                       </Typography>
                     </TableCell>
                     <TableCell>

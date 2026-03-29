@@ -24,7 +24,8 @@ export const testData = {
   },
   order: {
     customerName: 'John Test',
-    customerPhone: '0771234567',
+    customerPhone: '771234567',
+    customerAddress: 'No. 45, Flower Road, Colombo 07',
     itemAQTY: 2,
     itemBQTY: 1,
     itemBDiscountPercent: 10,

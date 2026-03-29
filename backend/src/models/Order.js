@@ -31,6 +31,8 @@ const orderSchema = new mongoose.Schema(
     orderRef: { type: String, required: true, unique: true },
     customerName: { type: String, default: 'Walk-in Customer' },
     customerPhone: { type: String, default: '' },
+    customerAddress: { type: String, default: '' },
+    customerSecondaryPhone: { type: String, default: '' },
     items: { type: [orderItemSchema], required: true },
 
     subtotal: { type: Number, required: true },          // sum of lineTotals (gross)

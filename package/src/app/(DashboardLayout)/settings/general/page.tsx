@@ -1,21 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Box, Card, CardContent, Grid, Typography, TextField, Select,
-  MenuItem, Button, Divider, FormControlLabel, Radio, RadioGroup,
-  FormLabel, FormControl, Avatar, Snackbar, Alert, Collapse,
-  InputAdornment, IconButton,
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  MenuItem,
+  Snackbar,
+  TextField,
+  Typography,
 } from "@mui/material";
-import { IconBuildingStore, IconEye, IconEyeOff } from "@tabler/icons-react";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
+import {
+  CURRENCY_OPTIONS,
+  formatCurrency as formatCurrencyValue,
+  GENERAL_SETTINGS_DEFAULTS,
+  TIMEZONE_OPTIONS,
+  type GeneralSettings,
+} from "@/lib/generalSettings";
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card sx={{ mb: 2.5 }}>
       <CardContent sx={{ p: 3 }}>
-        <Typography variant="h6" sx={{ color: "primary.dark", mb: 2.5 }}>{title}</Typography>
+        <Typography variant="h6" sx={{ color: "primary.dark", mb: 2.5 }}>
+          {title}
+        </Typography>
         {children}
       </CardContent>
     </Card>
@@ -23,190 +38,168 @@ function SectionCard({ title, children }: { title: string; children: React.React
 }
 
 export default function GeneralSettingsPage() {
-  // Business info
-  const [bizName, setBizName]     = useState("MADLAXUE");
-  const [currency, setCurrency]   = useState("GBP (Rs.)");
-  const [timezone, setTimezone]   = useState("Europe/London");
-
-  // Stock defaults
-  const [threshold, setThreshold] = useState("5");
-
-  // Display prefs
-  const [stockView, setStockView] = useState<"List" | "Grid">("List");
-  const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [dateFormat, setDateFormat] = useState("DD/MM/YYYY");
-
-  // Admin account
-  const [email, setEmail] = useState("admin@madlaxue.com");
-  const [showPwSection, setShowPwSection] = useState(false);
-  const [currentPw, setCurrentPw] = useState("");
-  const [newPw, setNewPw]         = useState("");
-  const [confirmPw, setConfirmPw] = useState("");
-  const [showPw, setShowPw]       = useState(false);
-  const [pwError, setPwError]     = useState("");
-
+  const { settings, loading, updateSettings } = useGeneralSettings();
+  const [form, setForm] = useState<GeneralSettings>(GENERAL_SETTINGS_DEFAULTS);
+  const [saving, setSaving] = useState(false);
   const [snackMsg, setSnackMsg] = useState("");
-  const [snackSev, setSnackSev] = useState<"success" | "error">("success");
+  const [snackSeverity, setSnackSeverity] = useState<"success" | "error">("success");
 
-  const handleSave = () => {
-    // Validate password if open
-    if (showPwSection) {
-      if (!currentPw) { setPwError("Enter your current password."); return; }
-      if (newPw.length < 6) { setPwError("New password must be at least 6 characters."); return; }
-      if (newPw !== confirmPw) { setPwError("Passwords do not match."); return; }
+  useEffect(() => {
+    setForm(settings);
+  }, [settings]);
+
+  const isDirty = useMemo(
+    () =>
+      form.currencyCode !== settings.currencyCode ||
+      form.timezone !== settings.timezone ||
+      form.defaultLowStockThreshold !== settings.defaultLowStockThreshold ||
+      form.defaultDeliveryFee !== settings.defaultDeliveryFee,
+    [form, settings]
+  );
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateSettings({
+        currencyCode: form.currencyCode,
+        timezone: form.timezone,
+        defaultLowStockThreshold: Number(form.defaultLowStockThreshold),
+        defaultDeliveryFee: Number(form.defaultDeliveryFee),
+      });
+      setSnackSeverity("success");
+      setSnackMsg("General settings saved successfully.");
+    } catch (err) {
+      setSnackSeverity("error");
+      setSnackMsg(err instanceof Error ? err.message : "Failed to save settings.");
+    } finally {
+      setSaving(false);
     }
-    setPwError("");
-    setSnackSev("success");
-    setSnackMsg("Settings saved successfully.");
-    setShowPwSection(false);
-    setCurrentPw(""); setNewPw(""); setConfirmPw("");
   };
 
   return (
-    <PageContainer title="General Settings" description="Business and display preferences">
-      <PageHeader title="General Settings" />
+    <PageContainer title="General Settings" description="Business-wide operational defaults">
+      <PageHeader
+        title="General Settings"
+        subtitle="Manage the shared currency, timezone, low-stock threshold, and delivery defaults."
+      />
 
-      {/* Business Information */}
-      <SectionCard title="Business Information">
+      <Alert severity="info" sx={{ mb: 2.5 }}>
+        Business profile, display preferences, and admin account controls are intentionally left out of this pass.
+        This page saves only the settings that are now wired across inventory, orders, and finance.
+      </Alert>
+
+      <SectionCard title="Business Defaults">
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
-              label="Business Name" value={bizName} size="small" fullWidth
-              onChange={(e) => setBizName(e.target.value)}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Avatar sx={{ bgcolor: "primary.main", width: 48, height: 48, fontSize: "1.2rem", fontWeight: 700 }}>
-                {bizName.charAt(0)}
-              </Avatar>
-              <Button variant="outlined" size="small" component="label">
-                Upload Logo
-                <input hidden accept="image/*" type="file" />
-              </Button>
-              <Typography variant="caption" color="text.secondary">PNG, JPG up to 2MB</Typography>
-            </Box>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField select label="Currency" value={currency} size="small" fullWidth
-              onChange={(e) => setCurrency(e.target.value)}>
-              {["GBP (Rs.)", "USD ($)", "EUR (€)", "LKR (Rs.)"].map((c) =>
-                <MenuItem key={c} value={c}>{c}</MenuItem>)}
+              select
+              label="Currency"
+              value={form.currencyCode}
+              size="small"
+              fullWidth
+              disabled={loading}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, currencyCode: event.target.value as GeneralSettings["currencyCode"] }))
+              }
+              helperText={`Preview: ${formatCurrencyValue(1234.56, form.currencyCode, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            >
+              {CURRENCY_OPTIONS.map((option) => (
+                <MenuItem key={option.code} value={option.code}>
+                  {option.label}
+                </MenuItem>
+              ))}
             </TextField>
           </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField select label="Timezone" value={timezone} size="small" fullWidth
-              onChange={(e) => setTimezone(e.target.value)}>
-              {["Asia/Colombo", "Europe/London", "America/New_York"].map((t) =>
-                <MenuItem key={t} value={t}>{t}</MenuItem>)}
-            </TextField>
-          </Grid>
-        </Grid>
-      </SectionCard>
-
-      {/* Stock Defaults */}
-      <SectionCard title="Stock Defaults">
-        <Grid container spacing={2} alignItems="center">
-          <Grid size={{ xs: 12, sm: 4 }}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
-              label="Global Low Stock Threshold" type="number"
-              value={threshold} size="small" fullWidth
-              onChange={(e) => setThreshold(e.target.value)}
-              inputProps={{ min: 0 }}
-              helperText="Applied to all variants without a custom threshold"
-            />
-          </Grid>
-        </Grid>
-      </SectionCard>
-
-      {/* Display Preferences */}
-      <SectionCard title="Display Preferences">
-        <Grid container spacing={2.5}>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <FormControl>
-              <FormLabel sx={{ fontSize: "0.8rem", fontWeight: 600, mb: 0.75 }}>Default Stock View</FormLabel>
-              <RadioGroup row value={stockView} onChange={(e) => setStockView(e.target.value as any)}>
-                <FormControlLabel value="List" control={<Radio size="small" />} label="List" />
-                <FormControlLabel value="Grid" control={<Radio size="small" />} label="Grid" />
-              </RadioGroup>
-            </FormControl>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField select label="Rows Per Page" value={rowsPerPage} size="small" fullWidth
-              onChange={(e) => setRowsPerPage(Number(e.target.value))}>
-              {[10, 25, 50, 100].map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
-            </TextField>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField select label="Date Format" value={dateFormat} size="small" fullWidth
-              onChange={(e) => setDateFormat(e.target.value)}>
-              {["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"].map((f) =>
-                <MenuItem key={f} value={f}>{f}</MenuItem>)}
+              select
+              label="Timezone"
+              value={form.timezone}
+              size="small"
+              fullWidth
+              disabled={loading}
+              onChange={(event) => setForm((prev) => ({ ...prev, timezone: event.target.value }))}
+            >
+              {TIMEZONE_OPTIONS.map((timezone) => (
+                <MenuItem key={timezone} value={timezone}>
+                  {timezone}
+                </MenuItem>
+              ))}
             </TextField>
           </Grid>
         </Grid>
       </SectionCard>
 
-      {/* Admin Account */}
-      <SectionCard title="Admin Account">
+      <SectionCard title="Operational Defaults">
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
-              label="Email" value={email} size="small" fullWidth type="email"
-              onChange={(e) => setEmail(e.target.value)}
+              label="Default Low Stock Threshold"
+              type="number"
+              value={form.defaultLowStockThreshold}
+              size="small"
+              fullWidth
+              disabled={loading}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  defaultLowStockThreshold: Math.max(0, Number(event.target.value || 0)),
+                }))
+              }
+              slotProps={{ htmlInput: { min: 0 } }}
+              helperText="Used when creating a new variant unless staff enters a custom threshold."
             />
           </Grid>
-          <Grid size={12}>
-            <Button variant="outlined" size="small"
-              onClick={() => { setShowPwSection((p) => !p); setPwError(""); }}>
-              {showPwSection ? "Cancel Password Change" : "Change Password"}
-            </Button>
-          </Grid>
-
-          <Grid size={12}>
-            <Collapse in={showPwSection}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 400, pt: 1 }}>
-                <TextField
-                  label="Current Password" size="small" fullWidth
-                  type={showPw ? "text" : "password"}
-                  value={currentPw} onChange={(e) => setCurrentPw(e.target.value)}
-                  slotProps={{ input: {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton size="small" edge="end" onClick={() => setShowPw((p) => !p)}>
-                          {showPw ? <IconEyeOff size={16} /> : <IconEye size={16} />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}}
-                />
-                <TextField
-                  label="New Password" size="small" fullWidth
-                  type={showPw ? "text" : "password"}
-                  value={newPw} onChange={(e) => setNewPw(e.target.value)}
-                />
-                <TextField
-                  label="Confirm New Password" size="small" fullWidth
-                  type={showPw ? "text" : "password"}
-                  value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)}
-                />
-                {pwError && <Alert severity="error" sx={{ py: 0.5 }}>{pwError}</Alert>}
-              </Box>
-            </Collapse>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="Default Delivery Fee"
+              type="number"
+              value={form.defaultDeliveryFee}
+              size="small"
+              fullWidth
+              disabled={loading}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  defaultDeliveryFee: Math.max(0, Number(event.target.value || 0)),
+                }))
+              }
+              slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+              helperText="Prefills new delivery orders and remains editable per order."
+            />
           </Grid>
         </Grid>
       </SectionCard>
 
-      {/* Save button */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-        <Button variant="contained" size="large" onClick={handleSave} sx={{ minWidth: 160 }}>
-          Save Changes
+      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1.5 }}>
+        <Button
+          variant="outlined"
+          size="large"
+          disabled={loading || saving || !isDirty}
+          onClick={() => setForm(settings)}
+        >
+          Reset
+        </Button>
+        <Button
+          variant="contained"
+          size="large"
+          disabled={loading || saving || !isDirty}
+          onClick={handleSave}
+          sx={{ minWidth: 160 }}
+        >
+          {saving ? "Saving..." : "Save Changes"}
         </Button>
       </Box>
 
-      <Snackbar open={!!snackMsg} autoHideDuration={3000} onClose={() => setSnackMsg("")}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
-        <Alert severity={snackSev} variant="filled" onClose={() => setSnackMsg("")}>{snackMsg}</Alert>
+      <Snackbar
+        open={!!snackMsg}
+        autoHideDuration={3000}
+        onClose={() => setSnackMsg("")}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert severity={snackSeverity} variant="filled" onClose={() => setSnackMsg("")}>
+          {snackMsg}
+        </Alert>
       </Snackbar>
     </PageContainer>
   );

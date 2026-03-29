@@ -2,14 +2,15 @@ const Variant = require('../models/Variant');
 const Order = require('../models/Order');
 const StockMovement = require('../models/StockMovement');
 const { success } = require('../utils/apiResponse');
+const { getResolvedGeneralSettings } = require('../services/generalSettingsService');
+const { getBusinessMonthRange } = require('../utils/businessTime');
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
 const getStats = async (req, res, next) => {
   try {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const generalSettings = await getResolvedGeneralSettings();
+    const { dateFrom: monthStart, dateTo: monthEnd } = getBusinessMonthRange(new Date(), generalSettings.timezone);
 
     const [
       totalVariants,

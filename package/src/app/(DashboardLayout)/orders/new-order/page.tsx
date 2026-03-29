@@ -14,9 +14,10 @@ import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
 import OrderBillDialog from "@/components/madlaxue/shared/OrderBillDialog";
-import { api, Order, StockMovement } from "@/lib/api";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
+import { api, OrderPriority, OrderWithPriority, StockMovement } from "@/lib/api";
+import { getCurrencyOption } from "@/lib/generalSettings";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
-import dayjs from "dayjs";
 
 // FIFO price calculation — mirrors backend allocation logic
 function calcFifoPrice(batches: StockMovement[], qty: number) {
@@ -88,11 +89,17 @@ const DECIMAL_PATTERN = /^\d*(\.\d{0,2})?$/;
 
 export default function NewOrderPage() {
   const router = useRouter();
+  const { settings, formatCurrency, formatBusinessDate } = useGeneralSettings();
+  const currencySymbol = getCurrencyOption(settings.currencyCode).symbol;
 
   // Customer
   const [custName, setCustName]   = useState("");
   const [custPhone, setCustPhone] = useState("");
+  const [custSecondaryPhone, setCustSecondaryPhone] = useState("");
+  const [custAddress, setCustAddress] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [secondaryPhoneError, setSecondaryPhoneError] = useState("");
+  const [addressError, setAddressError] = useState("");
 
   // Dropdown data
   const [categories, setCategories]   = useState<any[]>([]);
@@ -135,21 +142,30 @@ export default function NewOrderPage() {
 
   // Payment method
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "BankTransfer">("BankTransfer");
+  const [orderPriority, setOrderPriority] = useState<OrderPriority>("Normal");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("Delivery");
-  const [deliveryFee, setDeliveryFee]     = useState(300);
-  const [deliveryFeeInput, setDeliveryFeeInput] = useState("300");
+  const [deliveryFee, setDeliveryFee]     = useState(settings.defaultDeliveryFee);
+  const [deliveryFeeInput, setDeliveryFeeInput] = useState(String(settings.defaultDeliveryFee));
   const [deliveryFeeError, setDeliveryFeeError] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [snackMsg, setSnackMsg]     = useState("");
   const [snackSeverity, setSnackSeverity] = useState<AlertColor>("success");
-  const [billOrder, setBillOrder]   = useState<Order | null>(null);
+  const [billOrder, setBillOrder]   = useState<OrderWithPriority | null>(null);
 
   // Load categories + colors on mount
   useEffect(() => {
     api.getCategories().then((r: any) => setCategories(r.data ?? []));
     api.getColors().then((r: any) => setColors(r.data ?? []));
   }, []);
+
+  useEffect(() => {
+    if (deliveryMethod !== "Delivery") return;
+    if (deliveryFeeInput.trim() !== "" && Number(deliveryFeeInput) !== 300) return;
+
+    setDeliveryFee(settings.defaultDeliveryFee);
+    setDeliveryFeeInput(settings.defaultDeliveryFee > 0 ? String(settings.defaultDeliveryFee) : "");
+  }, [deliveryFeeInput, deliveryMethod, settings.defaultDeliveryFee]);
 
   // Load product types when category changes
   useEffect(() => {
@@ -298,6 +314,21 @@ export default function NewOrderPage() {
     setPhoneError("");
   };
 
+  const handleSecondaryPhoneChange = (value: string) => {
+    const digitsOnly = value.replace(/\D/g, "");
+    if (digitsOnly.length > PHONE_MAX_DIGITS) {
+      setCustSecondaryPhone(digitsOnly.slice(0, PHONE_MAX_DIGITS));
+      setSecondaryPhoneError(`Phone number can have at most ${PHONE_MAX_DIGITS} digits.`);
+      return;
+    }
+    setCustSecondaryPhone(digitsOnly);
+    if (value && /\D/.test(value)) {
+      setSecondaryPhoneError("Only numeric characters allowed.");
+      return;
+    }
+    setSecondaryPhoneError("");
+  };
+
   const ensurePhoneIsValid = () => {
     if (!custPhone) {
       setPhoneError("Phone number is required.");
@@ -311,6 +342,25 @@ export default function NewOrderPage() {
     return true;
   };
 
+  const ensureSecondaryPhoneIsValid = () => {
+    if (!custSecondaryPhone) return true;
+    if (secondaryPhoneError) return false;
+    if (custSecondaryPhone.length !== PHONE_MAX_DIGITS) {
+      setSecondaryPhoneError(`Phone number must have ${PHONE_MAX_DIGITS} digits.`);
+      return false;
+    }
+    return true;
+  };
+
+  const ensureAddressIsValid = () => {
+    if (custAddress.trim()) {
+      setAddressError("");
+      return true;
+    }
+    setAddressError("Address is required.");
+    return false;
+  };
+
   const handleApplyCoupon = async () => {
     setCouponValidating(true);
     try {
@@ -321,7 +371,7 @@ export default function NewOrderPage() {
       } else {
         const amount = res.discountAmount ?? 0;
         setCouponDiscount(amount);
-        setCouponSuccess(`Discount of Rs.${amount.toFixed(2)} applied!`);
+        setCouponSuccess(`Discount of ${formatCurrency(amount)} applied!`);
         setCouponError(""); setAppliedCoupon(couponInput.toUpperCase());
       }
     } catch (err: any) {
@@ -347,8 +397,8 @@ export default function NewOrderPage() {
       return;
     }
 
-    setDeliveryFee(300);
-    setDeliveryFeeInput("300");
+    setDeliveryFee(settings.defaultDeliveryFee);
+    setDeliveryFeeInput(settings.defaultDeliveryFee > 0 ? String(settings.defaultDeliveryFee) : "");
   };
 
   const handleDeliveryFeeChange = (value: string) => {
@@ -412,11 +462,23 @@ export default function NewOrderPage() {
       setSnackMsg("Please fix the phone number before submitting.");
       return;
     }
+    if (!ensureSecondaryPhoneIsValid()) {
+      setSnackSeverity("error");
+      setSnackMsg("Please fix the secondary phone number before submitting.");
+      return;
+    }
+    if (!ensureAddressIsValid()) {
+      setSnackSeverity("error");
+      setSnackMsg("Customer address is required.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res: any = await api.createOrder({
         customerName: custName || undefined,
         customerPhone: custPhone ? `+94${custPhone}` : undefined,
+        customerAddress: custAddress.trim(),
+        customerSecondaryPhone: custSecondaryPhone ? `+94${custSecondaryPhone}` : undefined,
         items: lines.map((l) => ({
           variantId: l.variantId,
           qty: l.qty,
@@ -430,18 +492,33 @@ export default function NewOrderPage() {
         deliveryFee,
       });
       // Capture order data before resetting form
-      setBillOrder(res.data ?? null);
+      setBillOrder(
+        res.data
+          ? {
+              ...res.data,
+              orderPriority,
+            }
+          : null
+      );
       setSnackSeverity("success");
-      setSnackMsg(`Order ${res.data?.orderRef ?? ""} confirmed! Total: Rs.${total.toFixed(2)}`);
+      setSnackMsg(`Order ${res.data?.orderRef ?? ""} confirmed! Total: ${formatCurrency(total)}`);
       // Reset all form state
-      setLines([]); setCustName(""); setCustPhone(""); setPhoneError("");
+      setLines([]);
+      setCustName("");
+      setCustPhone("");
+      setCustSecondaryPhone("");
+      setCustAddress("");
+      setPhoneError("");
+      setSecondaryPhoneError("");
+      setAddressError("");
       setCouponInput(""); setAppliedCoupon(""); setCouponDiscount(0);
       setCouponSuccess(""); setCouponError("");
       setManualDiscount(0); setManualDiscountType("fixed");
       setPaymentMethod("BankTransfer");
-      setDeliveryMethod("StorePickup");
-      setDeliveryFee(0);
-      setDeliveryFeeInput("");
+      setOrderPriority("Normal");
+      setDeliveryMethod("Delivery");
+      setDeliveryFee(settings.defaultDeliveryFee);
+      setDeliveryFeeInput(settings.defaultDeliveryFee > 0 ? String(settings.defaultDeliveryFee) : "");
       setDeliveryFeeError("");
     } catch (err: any) {
       setSnackSeverity("error");
@@ -483,6 +560,36 @@ export default function NewOrderPage() {
                     }}
                   />
                 </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    label="Secondary Phone (Optional)"
+                    value={custSecondaryPhone}
+                    size="small"
+                    fullWidth
+                    error={!!secondaryPhoneError}
+                    helperText={secondaryPhoneError || `Optional ${PHONE_MAX_DIGITS}-digit local number; +94 prefix added.`}
+                    onChange={(e) => handleSecondaryPhoneChange(e.target.value)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">+94</InputAdornment>,
+                      inputProps: { maxLength: PHONE_MAX_DIGITS },
+                    }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    label="Address"
+                    value={custAddress}
+                    size="small"
+                    fullWidth
+                    required
+                    error={!!addressError}
+                    helperText={addressError || "Required"}
+                    onChange={(e) => {
+                      setCustAddress(e.target.value);
+                      if (addressError && e.target.value.trim()) setAddressError("");
+                    }}
+                  />
+                </Grid>
               </Grid>
             </CardContent>
           </Card>
@@ -492,28 +599,42 @@ export default function NewOrderPage() {
             <CardContent sx={{ p: 3 }}>
               <Typography variant="h6" sx={{ color: "primary.dark", mb: 2 }}>Payment & Delivery</Typography>
               <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 4 }}>
+                <Grid size={{ xs: 12, sm: 3 }}>
                   <TextField select label="Payment Method" value={paymentMethod} size="small" fullWidth
                     onChange={(e) => setPaymentMethod(e.target.value as "COD" | "BankTransfer")}>
                     <MenuItem value="BankTransfer">Bank Transfer</MenuItem>
                     <MenuItem value="COD">COD (Cash on Delivery)</MenuItem>
                   </TextField>
                 </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
+                <Grid size={{ xs: 12, sm: 3 }}>
                   <TextField select label="Delivery Method" value={deliveryMethod} size="small" fullWidth
                     onChange={(e) => handleDeliveryMethodChange(e.target.value as DeliveryMethod)}>
                     <MenuItem value="Delivery">Delivery</MenuItem>
                     <MenuItem value="StorePickup">Store Pickup</MenuItem>
                   </TextField>
                 </Grid>
+                <Grid size={{ xs: 12, sm: 3 }}>
+                  <TextField
+                    select
+                    label="Order Priority"
+                    value={orderPriority}
+                    size="small"
+                    fullWidth
+                    onChange={(e) => setOrderPriority(e.target.value as OrderPriority)}
+                  >
+                    <MenuItem value="Normal">Normal</MenuItem>
+                    <MenuItem value="Urgent">Urgent</MenuItem>
+                    <MenuItem value="Top Urgent">Top Urgent</MenuItem>
+                  </TextField>
+                </Grid>
                 {deliveryMethod === "Delivery" && (
-                  <Grid size={{ xs: 12, sm: 4 }}>
+                  <Grid size={{ xs: 12, sm: 3 }}>
                     <TextField label="Delivery Fee" value={deliveryFeeInput} size="small" fullWidth
                       error={!!deliveryFeeError}
                       helperText={deliveryFeeError}
                       onChange={(e) => handleDeliveryFeeChange(e.target.value)}
                       slotProps={{
-                        input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> },
+                        input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> },
                         htmlInput: { inputMode: "decimal" },
                       }} />
                   </Grid>
@@ -575,7 +696,7 @@ export default function NewOrderPage() {
                   <TextField select label="Discount Type" value={addDiscountType}
                     onChange={(e) => setAddDiscountType(e.target.value as "fixed" | "percent")}
                     size="small" fullWidth>
-                    <MenuItem value="fixed">Rs. (Fixed)</MenuItem>
+                    <MenuItem value="fixed">{currencySymbol} (Fixed)</MenuItem>
                     <MenuItem value="percent">% (Percent)</MenuItem>
                   </TextField>
                 </Grid>
@@ -602,7 +723,7 @@ export default function NewOrderPage() {
                           <TableRow key={b._id}>
                             <TableCell>
                               <Typography variant="caption" color="text.secondary">
-                                {dayjs(b.createdAt).format("DD MMM YYYY")}
+                                {formatBusinessDate(b.createdAt)}
                               </Typography>
                             </TableCell>
                             <TableCell align="center">
@@ -610,7 +731,7 @@ export default function NewOrderPage() {
                             </TableCell>
                             <TableCell align="right">
                               <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                Rs.{(b.sellPrice ?? 0).toFixed(2)}
+                                {formatCurrency(b.sellPrice ?? 0)}
                               </Typography>
                             </TableCell>
                           </TableRow>
@@ -623,12 +744,12 @@ export default function NewOrderPage() {
                       For {addQty} unit{addQty > 1 ? "s" : ""}:{" "}
                       {fifoResult.allocations.map((a, i) => (
                         <span key={i}>
-                          {i > 0 ? " + " : ""}{a.qty} × Rs.{a.sellPrice.toFixed(2)}
+                          {i > 0 ? " + " : ""}{a.qty} × {formatCurrency(a.sellPrice)}
                         </span>
                       ))}
-                      {" "}= <strong>Rs.{fifoResult.totalPrice.toFixed(2)}</strong>
+                      {" "}= <strong>{formatCurrency(fifoResult.totalPrice)}</strong>
                       {fifoResult.allocations.length > 1 && (
-                        <> (avg Rs.{fifoResult.avgUnitPrice.toFixed(2)}/unit)</>
+                        <> (avg {formatCurrency(fifoResult.avgUnitPrice)}/unit)</>
                       )}
                     </Typography>
                   )}
@@ -722,15 +843,15 @@ export default function NewOrderPage() {
                               <Typography variant="body2">{l.qty}</Typography>
                             </TableCell>
                             <TableCell align="right">
-                              <Typography variant="body2">Rs.{l.unitPrice.toFixed(2)}</Typography>
+                              <Typography variant="body2">{formatCurrency(l.unitPrice)}</Typography>
                             </TableCell>
                             <TableCell align="right">
                               <Typography variant="body2" sx={{ color: "success.main" }}>
-                                {itemDiscount > 0 ? `−Rs.${itemDiscount.toFixed(2)}` : "—"}
+                                {itemDiscount > 0 ? `−${formatCurrency(itemDiscount)}` : "—"}
                               </Typography>
                             </TableCell>
                             <TableCell align="right">
-                              <Typography variant="body2" sx={{ fontWeight: 700 }}>Rs.{discountedTotal.toFixed(2)}</Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatCurrency(discountedTotal)}</Typography>
                             </TableCell>
                             <TableCell>
                               <IconButton size="small" onClick={() => removeLine(idx)} sx={{ color: "error.main" }}>
@@ -787,16 +908,16 @@ export default function NewOrderPage() {
                 <TextField select value={manualDiscountType}
                   onChange={(e) => setManualDiscountType(e.target.value as "fixed" | "percent")}
                   size="small" sx={{ width: 120, flexShrink: 0 }}>
-                  <MenuItem value="fixed">Rs. (Fixed)</MenuItem>
+                  <MenuItem value="fixed">{currencySymbol} (Fixed)</MenuItem>
                   <MenuItem value="percent">% (Percent)</MenuItem>
                 </TextField>
               </Box>
               <Box sx={{ mt: 1.5, display: "flex", justifyContent: "space-between" }}>
                 <Typography variant="body2" color="text.secondary">
-                  {manualDiscountType === "percent" ? `${manualDiscount}%` : `Rs.${manualDiscount.toFixed(2)}`} discount
+                  {manualDiscountType === "percent" ? `${manualDiscount}% discount` : `${formatCurrency(manualDiscount)} discount`}
                 </Typography>
                 <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>
-                  {manualDiscountAmount > 0 ? `−Rs.${manualDiscountAmount.toFixed(2)}` : "No discount"}
+                  {manualDiscountAmount > 0 ? `−${formatCurrency(manualDiscountAmount)}` : "No discount"}
                 </Typography>
               </Box>
             </CardContent>
@@ -810,12 +931,12 @@ export default function NewOrderPage() {
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                   <Typography variant="body2" color="text.secondary">Subtotal</Typography>
-                  <Typography variant="body2">Rs.{subtotal.toFixed(2)}</Typography>
+                  <Typography variant="body2">{formatCurrency(subtotal)}</Typography>
                 </Box>
                 {itemDiscountAmount > 0 && (
                   <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                     <Typography variant="body2" color="text.secondary">Item Discounts</Typography>
-                    <Typography variant="body2" sx={{ color: "success.main" }}>−Rs.{itemDiscountAmount.toFixed(2)}</Typography>
+                    <Typography variant="body2" sx={{ color: "success.main" }}>−{formatCurrency(itemDiscountAmount)}</Typography>
                   </Box>
                 )}
                 <Box sx={{ display: "flex", justifyContent: "space-between" }}>
@@ -826,13 +947,13 @@ export default function NewOrderPage() {
                     {appliedCoupon && <Chip label={appliedCoupon} size="small" color="success" sx={{ ml: 0.5, height: 18, fontSize: "0.65rem" }} />}
                   </Box>
                   <Typography variant="body2" sx={{ color: couponDiscount > 0 ? "success.main" : "text.secondary" }}>
-                    {couponDiscount > 0 ? `−Rs.${couponDiscount.toFixed(2)}` : "—"}
+                    {couponDiscount > 0 ? `−${formatCurrency(couponDiscount)}` : "—"}
                   </Typography>
                 </Box>
                 {manualDiscountAmount > 0 && (
                   <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                     <Typography variant="body2" color="text.secondary">Manual Discount</Typography>
-                    <Typography variant="body2" sx={{ color: "success.main" }}>−Rs.{manualDiscountAmount.toFixed(2)}</Typography>
+                    <Typography variant="body2" sx={{ color: "success.main" }}>−{formatCurrency(manualDiscountAmount)}</Typography>
                   </Box>
                 )}
 
@@ -841,7 +962,7 @@ export default function NewOrderPage() {
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <Typography variant="h5" sx={{ fontWeight: 700, color: "primary.dark" }}>Total</Typography>
                   <Typography variant="h4" sx={{ fontWeight: 800, color: "primary.dark", letterSpacing: "-0.02em" }}>
-                    Rs.{total.toFixed(2)}
+                    {formatCurrency(total)}
                   </Typography>
                 </Box>
 
@@ -849,12 +970,12 @@ export default function NewOrderPage() {
                   <>
                     <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                       <Typography variant="body2" color="text.secondary">Delivery Fee</Typography>
-                      <Typography variant="body2">Rs.{deliveryFee.toFixed(2)}</Typography>
+                      <Typography variant="body2">{formatCurrency(deliveryFee)}</Typography>
                     </Box>
                     <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>Customer Pays</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 700, color: "warning.dark" }}>
-                        Rs.{(total + deliveryFee).toFixed(2)}
+                        {formatCurrency(total + deliveryFee)}
                       </Typography>
                     </Box>
                   </>

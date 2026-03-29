@@ -19,7 +19,9 @@ import StatusChip from "@/components/madlaxue/shared/StatusChip";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
 import ConfirmDialog from "@/components/madlaxue/shared/ConfirmDialog";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api } from "@/lib/api";
+import { getCurrencyOption } from "@/lib/generalSettings";
 import { getPrimaryImageUrl, normalizeVariantImageUrl } from "@/utils/variantImage";
 
 const PER_PAGE = 25;
@@ -44,6 +46,8 @@ function EditPricesDialog({ variant, onSave, onClose }: {
   onSave: (id: string, costPrice: number, sellPrice: number, lowStockThreshold: number) => void;
   onClose: () => void;
 }) {
+  const { settings } = useGeneralSettings();
+  const currencySymbol = getCurrencyOption(settings.currencyCode).symbol;
   const [cost, setCost]     = useState(String(variant.costPrice));
   const [sell, setSell]     = useState(String(variant.sellPrice));
   const [thresh, setThresh] = useState(String(variant.lowStockThreshold));
@@ -54,13 +58,13 @@ function EditPricesDialog({ variant, onSave, onClose }: {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {formatVariantLabel(variant)}
         </Typography>
-        <TextField label="Cost Price (Rs.)" type="number" value={cost} size="small" fullWidth
+        <TextField label="Cost Price" type="number" value={cost} size="small" fullWidth
           onChange={(e) => setCost(e.target.value)}
-          slotProps={{ input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }}
           sx={{ mb: 2 }} />
-        <TextField label="Sell Price (Rs.)" type="number" value={sell} size="small" fullWidth
+        <TextField label="Sell Price" type="number" value={sell} size="small" fullWidth
           onChange={(e) => setSell(e.target.value)}
-          slotProps={{ input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }}
           sx={{ mb: 2 }} />
         <TextField label="Low Stock Threshold (units)" type="number" value={thresh} size="small" fullWidth
           onChange={(e) => setThresh(e.target.value)}
@@ -298,6 +302,8 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
   onClose: () => void;
   onSave: () => void;
 }) {
+  const { settings } = useGeneralSettings();
+  const currencySymbol = getCurrencyOption(settings.currencyCode).symbol;
   const [catId, setCatId]     = useState("");
   const [typeId, setTypeId]   = useState("");
   const [productTypes, setProductTypes] = useState<any[]>([]);
@@ -306,7 +312,7 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
   const [cost, setCost]       = useState("");
   const [sell, setSell]       = useState("");
   const [initQty, setInitQty] = useState("");
-  const [thresh, setThresh]   = useState("5");
+  const [thresh, setThresh]   = useState(String(settings.defaultLowStockThreshold));
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
@@ -323,6 +329,10 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
       if (pendingImage?.previewUrl) URL.revokeObjectURL(pendingImage.previewUrl);
     };
   }, [pendingImage]);
+
+  useEffect(() => {
+    setThresh(String(settings.defaultLowStockThreshold));
+  }, [settings.defaultLowStockThreshold]);
 
   const selectedType = productTypes.find((t) => t._id === typeId);
   const sizeOptions  = selectedType?.hasSizes ? selectedType.sizes : ["N/A"];
@@ -382,7 +392,7 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
       form.append("costPrice", String(Number(cost)));
       form.append("sellPrice", String(Number(sell)));
       form.append("stockQty", String(Number(initQty) || 0));
-      form.append("lowStockThreshold", String(Number(thresh) || 5));
+      form.append("lowStockThreshold", String(Number(thresh) || settings.defaultLowStockThreshold));
       if (pendingImage) form.append("images", pendingImage.file);
 
       await api.createVariant(form);
@@ -426,14 +436,14 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
             </TextField>
           </Grid>
           <Grid size={6}>
-            <TextField label="Cost Price (Rs.)" type="number" value={cost} size="small" fullWidth
+            <TextField label="Cost Price" type="number" value={cost} size="small" fullWidth
               onChange={(e) => setCost(e.target.value)}
-              slotProps={{ input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> } }} />
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> } }} />
           </Grid>
           <Grid size={6}>
-            <TextField label="Sell Price (Rs.)" type="number" value={sell} size="small" fullWidth
+            <TextField label="Sell Price" type="number" value={sell} size="small" fullWidth
               onChange={(e) => setSell(e.target.value)}
-              slotProps={{ input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> } }} />
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> } }} />
           </Grid>
           <Grid size={6}>
             <TextField label="Initial Stock Qty" type="number" value={initQty} size="small" fullWidth
@@ -529,6 +539,7 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
 // ─── Main Page ─────────────────────────────────────────────────────────────
 export default function VariantsPage() {
   const router = useRouter();
+  const { formatCurrency } = useGeneralSettings();
 
   const [variants, setVariants] = useState<any[]>([]);
   const [total, setTotal]       = useState(0);
@@ -671,8 +682,8 @@ export default function VariantsPage() {
                 <TableCell>Size</TableCell>
                 <TableCell>Color</TableCell>
                 <TableCell>SKU</TableCell>
-                <TableCell align="right">Cost Rs.</TableCell>
-                <TableCell align="right">Sell Rs.</TableCell>
+                <TableCell align="right">Cost</TableCell>
+                <TableCell align="right">Sell</TableCell>
                 <TableCell align="center">Stock</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -707,8 +718,8 @@ export default function VariantsPage() {
                     <TableCell>
                       <Typography variant="caption" sx={{ fontFamily: "monospace", color: "text.secondary" }}>{v.sku}</Typography>
                     </TableCell>
-                    <TableCell align="right"><Typography variant="body2">Rs. {v.costPrice.toFixed(2)}</Typography></TableCell>
-                    <TableCell align="right"><Typography variant="body2" sx={{ fontWeight: 600 }}>Rs. {v.sellPrice.toFixed(2)}</Typography></TableCell>
+                    <TableCell align="right"><Typography variant="body2">{formatCurrency(v.costPrice)}</Typography></TableCell>
+                    <TableCell align="right"><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(v.sellPrice)}</Typography></TableCell>
                     <TableCell align="center">
                       <Typography variant="body2" sx={{ fontWeight: 700, color: stockColor }}>{v.stockQty}</Typography>
                     </TableCell>

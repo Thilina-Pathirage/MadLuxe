@@ -13,11 +13,11 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api, StockMovement } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 
@@ -31,6 +31,7 @@ function QuickActionDialog({ batch, mode, onClose, onSubmit }: {
   batch: StockMovement; mode: "add" | "reduce"; onClose: () => void;
   onSubmit: (variantId: string, movementId: string, qty: number, reason: string) => void;
 }) {
+  const { formatBusinessDate, formatCurrency } = useGeneralSettings();
   const [qty, setQty] = useState(1);
   const [reason, setReason] = useState("");
   const v = batch.variant;
@@ -45,13 +46,13 @@ function QuickActionDialog({ batch, mode, onClose, onSubmit }: {
       </DialogTitle>
       <DialogContent sx={{ pt: "12px !important" }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-          Batch date: <strong>{dayjs(batch.createdAt).format("DD MMM YYYY")}</strong>
+          Batch date: <strong>{formatBusinessDate(batch.createdAt)}</strong>
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
           Batch remaining: <strong>{remaining}</strong> units
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Batch cost: <strong>Rs. {batch.costPrice?.toFixed(2) ?? "—"}</strong> / Sell: <strong>Rs. {batch.sellPrice?.toFixed(2) ?? "—"}</strong>
+          Batch cost: <strong>{formatCurrency(batch.costPrice)}</strong> / Sell: <strong>{formatCurrency(batch.sellPrice)}</strong>
         </Typography>
         <TextField label="Quantity" type="number" value={qty}
           onChange={(e) => setQty(Math.max(1, Math.min(max, Number(e.target.value))))}
@@ -76,6 +77,7 @@ function QuickActionDialog({ batch, mode, onClose, onSubmit }: {
 
 // ─── Grid Card (batch-level) ──────────────────────────────────────────────
 function BatchCard({ m, onAdd, onReduce }: { m: StockMovement; onAdd: () => void; onReduce: () => void }) {
+  const { formatBusinessDate, formatCurrency } = useGeneralSettings();
   const v = m.variant as any;
   const remaining = m.qtyRemaining ?? 0;
   const stockColor = remaining === 0 ? "error.main" : remaining <= 5 ? "warning.main" : "success.main";
@@ -100,7 +102,7 @@ function BatchCard({ m, onAdd, onReduce }: { m: StockMovement; onAdd: () => void
           {v?.productType?.name} — {v?.color?.name}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          {v?.category?.name}{v?.size !== "N/A" ? ` / ${v?.size}` : ""} · {dayjs(m.createdAt).format("DD MMM")}
+          {v?.category?.name}{v?.size !== "N/A" ? ` / ${v?.size}` : ""} · {formatBusinessDate(m.createdAt, "DD MMM")}
         </Typography>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1 }}>
           <Box>
@@ -109,7 +111,7 @@ function BatchCard({ m, onAdd, onReduce }: { m: StockMovement; onAdd: () => void
           </Box>
           <Box sx={{ textAlign: "right" }}>
             <Typography variant="caption" color="text.secondary">Cost</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Rs. {m.costPrice?.toFixed(2) ?? "—"}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(m.costPrice)}</Typography>
           </Box>
         </Box>
         <Box sx={{ display: "flex", gap: 0.5, mt: 1.5 }}>
@@ -136,6 +138,7 @@ function BatchCard({ m, onAdd, onReduce }: { m: StockMovement; onAdd: () => void
 // ─── Main Page ─────────────────────────────────────────────────────────────
 export default function AllStockPage() {
   const router = useRouter();
+  const { formatBusinessDate, formatCurrency } = useGeneralSettings();
   const [batches, setBatches] = useState<StockMovement[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -278,7 +281,7 @@ export default function AllStockPage() {
                             <Typography variant="caption" sx={{ fontFamily: "monospace", color: "text.secondary" }}>{v?.sku}</Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="caption" color="text.secondary">{dayjs(m.createdAt).format("DD MMM YYYY")}</Typography>
+                            <Typography variant="caption" color="text.secondary">{formatBusinessDate(m.createdAt)}</Typography>
                           </TableCell>
                           <TableCell align="center">
                             <Tooltip title={`${remaining} of ${total} units remaining in this batch`}>
@@ -287,13 +290,13 @@ export default function AllStockPage() {
                             </Tooltip>
                           </TableCell>
                           <TableCell align="right">
-                            <Typography variant="body2">Rs. {m.costPrice?.toFixed(2) ?? "—"}</Typography>
+                            <Typography variant="body2">{formatCurrency(m.costPrice)}</Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>Rs. {m.sellPrice?.toFixed(2) ?? "—"}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(m.sellPrice)}</Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>Rs. {batchValue.toFixed(2)}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(batchValue)}</Typography>
                           </TableCell>
                           <TableCell>
                             <Typography variant="caption" color="text.secondary">{m.supplier || "—"}</Typography>

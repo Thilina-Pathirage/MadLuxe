@@ -174,8 +174,8 @@ async function createVariant(page: Page, variant: typeof testData.variantA, colo
   await chooseSelectByLabel(page, 'Size', variant.size);
   await chooseSelectByLabel(page, 'Color', colorName);
 
-  await page.getByLabel('Cost Price (Rs.)').fill(String(variant.costPrice));
-  await page.getByLabel('Sell Price (Rs.)').fill(String(variant.sellPrice));
+  await page.getByLabel('Cost Price').fill(String(variant.costPrice));
+  await page.getByLabel('Sell Price').fill(String(variant.sellPrice));
   await page.getByLabel('Initial Stock Qty').fill('0');
   await page.getByLabel('Low Stock Threshold').fill(String(variant.lowStockThreshold));
 
@@ -260,6 +260,7 @@ test.describe.serial('Happy path automation: config -> variant -> stock -> order
     });
     await page.getByLabel('Customer Name').fill(testData.order.customerName);
     await page.getByLabel('Phone').fill(testData.order.customerPhone);
+    await page.getByLabel('Address').fill(testData.order.customerAddress);
 
     await addOrderLine(page, {
       size: testData.variantA.size,
@@ -282,6 +283,7 @@ test.describe.serial('Happy path automation: config -> variant -> stock -> order
 
     await page.getByRole('button', { name: 'Confirm Order' }).click();
     await expect(page.getByText('confirmed')).toBeVisible();
+    await page.getByRole('button', { name: 'Close' }).click();
 
     await page.waitForURL('**/orders/all-orders');
     const firstOrderRow = page.locator('tbody tr').first();
@@ -335,6 +337,9 @@ test.describe.serial('Happy path automation: config -> variant -> stock -> order
       readyRole: 'button',
       readyName: 'Confirm Order',
     });
+    await page.getByLabel('Customer Name').fill(`${testData.order.customerName} 2`);
+    await page.getByLabel('Phone').fill('771234568');
+    await page.getByLabel('Address').fill(testData.order.customerAddress);
 
     await addOrderLine(page, {
       size: testData.variantA.size,
@@ -357,6 +362,7 @@ test.describe.serial('Happy path automation: config -> variant -> stock -> order
 
     await page.getByRole('button', { name: 'Confirm Order' }).click();
     await expect(page.getByText('confirmed')).toBeVisible();
+    await page.getByRole('button', { name: 'Close' }).click();
 
     await page.waitForURL('**/orders/all-orders');
     const firstOrderRow = page.locator('tbody tr').first();

@@ -133,6 +133,8 @@ export interface Order {
   orderRef: string;
   customerName: string;
   customerPhone: string;
+  customerAddress: string;
+  customerSecondaryPhone?: string;
   items: OrderItem[];
   subtotal: number;
   itemDiscountAmount: number;
@@ -148,6 +150,12 @@ export interface Order {
   createdAt: string;
 }
 
+export type OrderPriority = 'Normal' | 'Urgent' | 'Top Urgent';
+
+export type OrderWithPriority = Order & {
+  orderPriority?: OrderPriority;
+};
+
 export interface CreateOrderItem {
   variantId: string;
   qty: number;
@@ -158,6 +166,8 @@ export interface CreateOrderItem {
 export interface CreateOrderInput {
   customerName?: string;
   customerPhone?: string;
+  customerAddress: string;
+  customerSecondaryPhone?: string;
   items: CreateOrderItem[];
   couponCode?: string;
   manualDiscount?: number;
@@ -190,6 +200,14 @@ export interface FinanceSummary {
   manualExpenseTotal: number;
   manualEntryCount: number;
   chartData: { label: string; revenue: number; cost: number; profit: number }[];
+}
+
+export interface GeneralSettings {
+  _id?: string;
+  currencyCode: 'LKR' | 'USD' | 'EUR' | 'GBP';
+  timezone: string;
+  defaultLowStockThreshold: number;
+  defaultDeliveryFee: number;
 }
 
 export interface ManualFinanceEntry {
@@ -356,6 +374,15 @@ export const api = {
   deleteManualFinanceEntry: (id: string) =>
     request<ApiResponse<unknown>>(`/finance/manual-entries/${id}`, {
       method: 'DELETE',
+    }),
+
+  // General settings
+  getGeneralSettings: () =>
+    request<ApiResponse<GeneralSettings>>('/settings/general'),
+  updateGeneralSettings: (data: Omit<GeneralSettings, '_id'> | GeneralSettings) =>
+    request<ApiResponse<GeneralSettings>>('/settings/general', {
+      method: 'PUT',
+      body: JSON.stringify(data),
     }),
 
   // Categories

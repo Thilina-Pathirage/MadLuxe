@@ -8,10 +8,10 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { IconDownload } from "@tabler/icons-react";
-import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api } from "@/lib/api";
 
 const PER_PAGE = 25;
@@ -45,6 +45,7 @@ function qtyColor(m: any): string {
 }
 
 export default function StockHistoryPage() {
+  const { formatBusinessDate } = useGeneralSettings();
   const [typeFilter, setTypeFilter] = useState<"All" | MovementType>("All");
   const [fromDate, setFromDate]     = useState("");
   const [toDate, setToDate]         = useState("");
@@ -141,7 +142,7 @@ export default function StockHistoryPage() {
                 <TableRow key={m._id} hover sx={{ "&:last-child td": { border: 0 } }}>
                   <TableCell sx={{ whiteSpace: "nowrap" }}>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {dayjs(m.createdAt).format("DD MMM YYYY")}
+                      {formatBusinessDate(m.createdAt)}
                     </Typography>
                   </TableCell>
                   <TableCell>

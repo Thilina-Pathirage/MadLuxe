@@ -29,12 +29,13 @@ import {
   Typography,
 } from "@mui/material";
 import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
-import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
 import ConfirmDialog from "@/components/madlaxue/shared/ConfirmDialog";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api, ManualFinanceEntry } from "@/lib/api";
+import { getCurrencyOption } from "@/lib/generalSettings";
 
 type EntryType = "income" | "expense";
 
@@ -49,7 +50,7 @@ const EMPTY_FORM: FormState = {
   type: "expense",
   amount: "",
   reason: "",
-  entryDate: dayjs().format("YYYY-MM-DD"),
+  entryDate: "",
 };
 
 function getErrorMessage(err: unknown, fallback: string) {
@@ -58,6 +59,8 @@ function getErrorMessage(err: unknown, fallback: string) {
 }
 
 export default function ManualEntriesPage() {
+  const { formatBusinessDate, formatCurrency, getBusinessToday, settings } = useGeneralSettings();
+  const currencySymbol = getCurrencyOption(settings.currencyCode).symbol;
   const [entries, setEntries] = useState<ManualFinanceEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,7 +109,7 @@ export default function ManualEntriesPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, entryDate: getBusinessToday() });
     setFormError("");
     setDialogOpen(true);
   };
@@ -117,7 +120,7 @@ export default function ManualEntriesPage() {
       type: entry.type,
       amount: String(entry.amount),
       reason: entry.reason,
-      entryDate: dayjs(entry.entryDate).format("YYYY-MM-DD"),
+      entryDate: new Date(entry.entryDate).toISOString().slice(0, 10),
     });
     setFormError("");
     setDialogOpen(true);
@@ -261,10 +264,10 @@ export default function ManualEntriesPage() {
 
           <Box sx={{ ml: "auto", display: "flex", gap: 1.5 }}>
             <Typography variant="caption" sx={{ color: "success.main", fontWeight: 600 }}>
-              Page Income: Rs. {pageIncome.toFixed(2)}
+              Page Income: {formatCurrency(pageIncome)}
             </Typography>
             <Typography variant="caption" sx={{ color: "error.main", fontWeight: 600 }}>
-              Page Expense: Rs. {pageExpense.toFixed(2)}
+              Page Expense: {formatCurrency(pageExpense)}
             </Typography>
           </Box>
         </Box>
@@ -293,7 +296,7 @@ export default function ManualEntriesPage() {
                   {entries.map((entry) => (
                     <TableRow key={entry._id} hover>
                       <TableCell>
-                        <Typography variant="body2">{dayjs(entry.entryDate).format("DD MMM YYYY")}</Typography>
+                        <Typography variant="body2">{formatBusinessDate(entry.entryDate)}</Typography>
                       </TableCell>
                       <TableCell>
                         <Chip
@@ -304,7 +307,7 @@ export default function ManualEntriesPage() {
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          Rs. {entry.amount.toFixed(2)}
+                          {formatCurrency(entry.amount)}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -382,7 +385,7 @@ export default function ManualEntriesPage() {
             inputProps={{ min: 0.01, step: 0.01 }}
             slotProps={{
               input: {
-                startAdornment: <InputAdornment position="start">Rs.</InputAdornment>,
+                startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
               },
             }}
           />

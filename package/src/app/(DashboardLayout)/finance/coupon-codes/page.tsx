@@ -14,7 +14,9 @@ import PageContainer from "@/app/(DashboardLayout)/components/container/PageCont
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ConfirmDialog from "@/components/madlaxue/shared/ConfirmDialog";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api } from "@/lib/api";
+import { getCurrencyOption } from "@/lib/generalSettings";
 
 function randomCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -26,6 +28,8 @@ const EMPTY_FORM = {
 };
 
 export default function CouponCodesPage() {
+  const { formatBusinessDate, formatCurrency, settings } = useGeneralSettings();
+  const currencySymbol = getCurrencyOption(settings.currencyCode).symbol;
   const [coupons, setCoupons]       = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -147,22 +151,22 @@ export default function CouponCodesPage() {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip label={c.type === "percent" ? "%" : "Rs."} color={c.type === "percent" ? "info" : "success"} size="small" />
+                        <Chip label={c.type === "percent" ? "%" : currencySymbol} color={c.type === "percent" ? "info" : "success"} size="small" />
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {c.type === "percent" ? `${c.value}%` : `Rs. ${c.value.toFixed(2)}`}
+                          {c.type === "percent" ? `${c.value}%` : formatCurrency(c.value)}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" color="text.secondary">
-                          {c.minOrderValue != null ? `Rs. ${c.minOrderValue}` : "—"}
+                          {c.minOrderValue != null ? formatCurrency(c.minOrderValue) : "—"}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         {c.expiryDate ? (
                           <Typography variant="caption" sx={{ color: expired ? "error.main" : "text.secondary", fontWeight: expired ? 600 : 400 }}>
-                            {dayjs(c.expiryDate).format("DD MMM YYYY")}{expired && " (expired)"}
+                            {formatBusinessDate(c.expiryDate)}{expired && " (expired)"}
                           </Typography>
                         ) : (
                           <Typography variant="caption" color="text.disabled">No expiry</Typography>
@@ -226,21 +230,21 @@ export default function CouponCodesPage() {
             <RadioGroup row value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as "percent" | "fixed" }))}>
               <FormControlLabel value="percent" control={<Radio size="small" />} label="Percentage (%)" />
-              <FormControlLabel value="fixed"   control={<Radio size="small" />} label="Fixed Amount (Rs.)" />
+              <FormControlLabel value="fixed"   control={<Radio size="small" />} label={`Fixed Amount (${currencySymbol})`} />
             </RadioGroup>
           </FormControl>
           <TextField
             label="Value" type="number" value={form.value}
             onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
             size="small" fullWidth sx={{ mb: 2 }}
-            slotProps={{ input: { startAdornment: <InputAdornment position="start">{form.type === "percent" ? "%" : "Rs."}</InputAdornment> } }}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start">{form.type === "percent" ? "%" : currencySymbol}</InputAdornment> } }}
             inputProps={{ min: 0, max: form.type === "percent" ? 100 : undefined, step: 0.01 }}
           />
           <TextField
-            label="Minimum Order Value (Rs.)" type="number" value={form.minOrderValue}
+            label="Minimum Order Value" type="number" value={form.minOrderValue}
             onChange={(e) => setForm((f) => ({ ...f, minOrderValue: e.target.value }))}
             size="small" fullWidth sx={{ mb: 2 }} helperText="Leave blank for no minimum"
-            slotProps={{ input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> } }}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> } }}
           />
           <TextField
             label="Usage Limit" type="number" value={form.usageLimit}

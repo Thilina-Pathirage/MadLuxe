@@ -9,6 +9,10 @@ router.get('/:id', ctrl.getOne);
 router.post(
   '/',
   [
+    body('customerAddress')
+      .trim()
+      .notEmpty()
+      .withMessage('Customer address is required'),
     body('items').isArray({ min: 1 }).withMessage('Items array is required'),
     body('items.*.variantId').notEmpty().isMongoId().withMessage('Valid variant ID required for each item'),
     body('items.*.qty').isInt({ min: 1 }).withMessage('Item quantity must be at least 1'),

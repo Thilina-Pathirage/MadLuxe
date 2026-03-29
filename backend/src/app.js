@@ -127,6 +127,7 @@ app.use('/api/stock-movements', require('./routes/stockMovements'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/coupons', require('./routes/coupons'));
 app.use('/api/finance', require('./routes/finance'));
+app.use('/api/settings', require('./routes/settings'));
 
 // 404 handler
 app.use((req, res) => {

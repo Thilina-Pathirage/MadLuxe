@@ -14,11 +14,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
   ResponsiveContainer,
 } from "recharts";
-import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api } from "@/lib/api";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -50,7 +50,7 @@ function KpiCard({ label, value, sub, icon: Icon, color }: {
   );
 }
 
-function ChartTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, label, formatCurrency }: any) {
   if (!active || !payload?.length) return null;
   return (
     <Box sx={{ bgcolor: "background.paper", p: 1.5, borderRadius: 2, boxShadow: "0 20px 40px rgba(0,28,59,0.1)", minWidth: 160 }}>
@@ -58,7 +58,7 @@ function ChartTooltip({ active, payload, label }: any) {
       {[...payload].reverse().map((p: any) => (
         <Box key={p.dataKey} sx={{ display: "flex", justifyContent: "space-between", gap: 3 }}>
           <Typography variant="caption" sx={{ color: p.fill }}>■ {p.name}</Typography>
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>Rs. {p.value.toLocaleString()}</Typography>
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>{formatCurrency(p.value)}</Typography>
         </Box>
       ))}
     </Box>
@@ -66,9 +66,9 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 export default function RevenueProfitPage() {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const initMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const { formatBusinessDate, formatCurrency, getBusinessMonthKey } = useGeneralSettings();
+  const initMonth = getBusinessMonthKey();
+  const currentYear = Number(initMonth.slice(0, 4));
 
   const [period, setPeriod]   = useState<"monthly" | "daily">("monthly");
   const [selectedMonth, setSelectedMonth] = useState(initMonth);
@@ -167,9 +167,9 @@ export default function RevenueProfitPage() {
       {/* KPI Cards */}
       <Grid container spacing={2.5} sx={{ mb: 3 }}>
         {[
-          { label: "Total Revenue", value: `Rs. ${kpi.totalRevenue.toLocaleString()}`,  icon: IconTrendingUp,   color: "#1E3A5F" },
-          { label: "Total Cost",    value: `Rs. ${kpi.totalCost.toLocaleString()}`,     icon: IconShoppingCart, color: "#c62828" },
-          { label: "Gross Profit",  value: `Rs. ${kpi.grossProfit.toLocaleString()}`,   icon: IconChartBar,     color: "#2e7d32" },
+          { label: "Total Revenue", value: formatCurrency(kpi.totalRevenue),  icon: IconTrendingUp,   color: "#1E3A5F" },
+          { label: "Total Cost",    value: formatCurrency(kpi.totalCost),     icon: IconShoppingCart, color: "#c62828" },
+          { label: "Gross Profit",  value: formatCurrency(kpi.grossProfit),   icon: IconChartBar,     color: "#2e7d32" },
           { label: "Profit Margin", value: `${kpi.profitMargin}%`,                      icon: IconPercentage,   color: "#e65100" },
         ].map((c) => (
           <Grid key={c.label} size={{ xs: 12, sm: 6, md: 3 }}>
@@ -179,7 +179,7 @@ export default function RevenueProfitPage() {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
             label="Manual Income"
-            value={`Rs. ${kpi.manualIncomeTotal.toLocaleString()}`}
+            value={formatCurrency(kpi.manualIncomeTotal)}
             sub={`${kpi.manualEntryCount} manual entries`}
             icon={IconTrendingUp}
             color="#00695c"
@@ -188,7 +188,7 @@ export default function RevenueProfitPage() {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
             label="Manual Expense"
-            value={`Rs. ${kpi.manualExpenseTotal.toLocaleString()}`}
+            value={formatCurrency(kpi.manualExpenseTotal)}
             sub={`${kpi.manualEntryCount} manual entries`}
             icon={IconShoppingCart}
             color="#ad1457"
@@ -198,7 +198,7 @@ export default function RevenueProfitPage() {
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <KpiCard
               label="COD Receivable"
-              value={`Rs. ${kpi.codReceivable.toLocaleString()}`}
+              value={formatCurrency(kpi.codReceivable)}
               sub={`${kpi.codOrderCount} COD orders`}
               icon={IconTruck}
               color="#f57c00"
@@ -219,8 +219,8 @@ export default function RevenueProfitPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(196,198,207,0.3)" vertical={false} />
                 <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#43474e" }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#43474e" }}
-                  tickFormatter={(v) => `Rs. ${v}`} width={60} />
-                <RTooltip content={<ChartTooltip />} cursor={{ fill: "rgba(30,58,95,0.04)" }} />
+                  tickFormatter={(v) => formatCurrency(v, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} width={100} />
+                <RTooltip content={<ChartTooltip formatCurrency={formatCurrency} />} cursor={{ fill: "rgba(30,58,95,0.04)" }} />
                 <Bar dataKey="revenue" name="Revenue" fill="#1E3A5F" radius={[4,4,0,0]} />
                 <Bar dataKey="profit"  name="Profit"  fill="#2e7d32" radius={[4,4,0,0]} />
               </BarChart>
@@ -255,9 +255,9 @@ export default function RevenueProfitPage() {
                     <TableCell>Date</TableCell>
                     <TableCell>Variant</TableCell>
                     <TableCell align="center">Qty Sold</TableCell>
-                    <TableCell align="right">Cost Rs.</TableCell>
-                    <TableCell align="right">Revenue Rs.</TableCell>
-                    <TableCell align="right">Profit Rs.</TableCell>
+                    <TableCell align="right">Cost</TableCell>
+                    <TableCell align="right">Revenue</TableCell>
+                    <TableCell align="right">Profit</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -265,7 +265,7 @@ export default function RevenueProfitPage() {
                     <TableRow key={i} hover sx={{ "&:last-child td": { border: 0 } }}>
                       <TableCell>
                         <Typography variant="caption" color="text.secondary">
-                          {dayjs(r.date).format("DD MMM YYYY")}
+                          {formatBusinessDate(r.date)}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -274,11 +274,11 @@ export default function RevenueProfitPage() {
                         </Typography>
                       </TableCell>
                       <TableCell align="center"><Typography variant="body2">{r.qtySold}</Typography></TableCell>
-                      <TableCell align="right"><Typography variant="body2">Rs. {(r.costPrice * r.qtySold).toFixed(2)}</Typography></TableCell>
-                      <TableCell align="right"><Typography variant="body2" sx={{ fontWeight: 600 }}>Rs. {r.revenue.toFixed(2)}</Typography></TableCell>
+                      <TableCell align="right"><Typography variant="body2">{formatCurrency(r.costPrice * r.qtySold)}</Typography></TableCell>
+                      <TableCell align="right"><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(r.revenue)}</Typography></TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" sx={{ fontWeight: 700, color: r.profit >= 0 ? "success.main" : "error.main" }}>
-                          Rs. {r.profit.toFixed(2)}
+                          {formatCurrency(r.profit)}
                         </Typography>
                       </TableCell>
                     </TableRow>

@@ -7,11 +7,11 @@ import {
   MenuItem, Button, Alert, Pagination, CircularProgress,
 } from "@mui/material";
 import { IconDownload } from "@tabler/icons-react";
-import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api } from "@/lib/api";
 
 const PER_PAGE = 25;
@@ -26,6 +26,7 @@ function mvLabel(m: any) {
 }
 
 export default function StockOutPage() {
+  const { formatBusinessDate } = useGeneralSettings();
   const [movements, setMovements] = useState<any[]>([]);
   const [total, setTotal]         = useState(0);
   const [loading, setLoading]     = useState(true);
@@ -102,7 +103,7 @@ export default function StockOutPage() {
               ) : movements.map((m) => (
                 <TableRow key={m._id} hover sx={{ "&:last-child td": { border: 0 } }}>
                   <TableCell>
-                    <Typography variant="caption" color="text.secondary">{dayjs(m.createdAt).format("DD MMM YYYY")}</Typography>
+                    <Typography variant="caption" color="text.secondary">{formatBusinessDate(m.createdAt)}</Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>{mvLabel(m)}</Typography>

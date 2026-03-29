@@ -1,46 +1,26 @@
 const Order = require('../models/Order');
 const ManualFinanceEntry = require('../models/ManualFinanceEntry');
 const { success, error } = require('../utils/apiResponse');
+const { getResolvedGeneralSettings } = require('../services/generalSettingsService');
+const { dayjs, formatBusinessBucketLabel, resolveBusinessDateRange } = require('../utils/businessTime');
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const resolveDateRange = ({ period = 'monthly', year, month, dateFrom: qDateFrom, dateTo: qDateTo }) => {
-  let dateFrom;
-  let dateTo;
-
-  if (qDateFrom && qDateTo) {
-    dateFrom = new Date(qDateFrom);
-    dateTo = new Date(qDateTo);
-    dateTo.setHours(23, 59, 59, 999);
-    return { dateFrom, dateTo };
-  }
-
-  if (period === 'daily' && month) {
-    const [y, m] = month.split('-').map(Number);
-    dateFrom = new Date(y, m - 1, 1);
-    dateTo = new Date(y, m, 0, 23, 59, 59, 999);
-    return { dateFrom, dateTo };
-  }
-
-  const y = parseInt(year, 10) || new Date().getFullYear();
-  dateFrom = new Date(y, 0, 1);
-  dateTo = new Date(y, 11, 31, 23, 59, 59, 999);
-  return { dateFrom, dateTo };
-};
-
-const bucketLabel = (date, period) => {
-  const d = new Date(date);
-  return period === 'daily'
-    ? String(d.getDate())
-    : d.toLocaleString('default', { month: 'short' });
-};
-
 const getSummary = async (req, res, next) => {
   try {
     const { period = 'monthly', year, month, paymentMethod, dateFrom: qDateFrom, dateTo: qDateTo } = req.query;
+    const generalSettings = await getResolvedGeneralSettings();
+    const businessTimezone = generalSettings.timezone;
 
-    const { dateFrom, dateTo } = resolveDateRange({ period, year, month, dateFrom: qDateFrom, dateTo: qDateTo });
+    const { dateFrom, dateTo } = resolveBusinessDateRange({
+      period,
+      year,
+      month,
+      dateFrom: qDateFrom,
+      dateTo: qDateTo,
+      timezone: businessTimezone,
+    });
 
     const filter = { status: 'Completed', createdAt: { $gte: dateFrom, $lte: dateTo } };
     if (paymentMethod) filter.paymentMethod = paymentMethod;
@@ -67,7 +47,7 @@ const getSummary = async (req, res, next) => {
       totalCost += orderCost;
 
       // Group by bucket label
-      const label = bucketLabel(order.createdAt, period);
+      const label = formatBusinessBucketLabel(order.createdAt, period, businessTimezone);
       if (!buckets[label]) buckets[label] = { revenue: 0, cost: 0 };
       buckets[label].revenue += order.total;
       buckets[label].cost += orderCost;
@@ -75,7 +55,7 @@ const getSummary = async (req, res, next) => {
 
     for (const entry of manualEntries) {
       const amount = round2(entry.amount);
-      const label = bucketLabel(entry.entryDate, period);
+      const label = formatBusinessBucketLabel(entry.entryDate, period, businessTimezone);
       if (!buckets[label]) buckets[label] = { revenue: 0, cost: 0 };
 
       if (entry.type === 'income') {
@@ -105,8 +85,10 @@ const getSummary = async (req, res, next) => {
     // Build chart data in order
     let chartData;
     if (period === 'daily') {
-      const [y, m] = (month || '').split('-').map(Number);
-      const daysInMonth = new Date(y, m, 0).getDate();
+      const baseMonth = month
+        ? dayjs.tz(`${month}-01`, businessTimezone)
+        : dayjs().tz(businessTimezone).startOf('month');
+      const daysInMonth = baseMonth.daysInMonth();
       chartData = Array.from({ length: daysInMonth }, (_, i) => {
         const label = String(i + 1);
         const b = buckets[label] || { revenue: 0, cost: 0 };
@@ -141,8 +123,16 @@ const getSummary = async (req, res, next) => {
 const getBreakdown = async (req, res, next) => {
   try {
     const { period = 'monthly', year, month, category, paymentMethod, dateFrom: qDateFrom, dateTo: qDateTo, page = 1, limit = 25 } = req.query;
+    const generalSettings = await getResolvedGeneralSettings();
 
-    const { dateFrom, dateTo } = resolveDateRange({ period, year, month, dateFrom: qDateFrom, dateTo: qDateTo });
+    const { dateFrom, dateTo } = resolveBusinessDateRange({
+      period,
+      year,
+      month,
+      dateFrom: qDateFrom,
+      dateTo: qDateTo,
+      timezone: generalSettings.timezone,
+    });
 
     const breakdownFilter = { status: 'Completed', createdAt: { $gte: dateFrom, $lte: dateTo } };
     if (paymentMethod) breakdownFilter.paymentMethod = paymentMethod;
@@ -196,17 +186,19 @@ const getBreakdown = async (req, res, next) => {
 const getManualEntries = async (req, res, next) => {
   try {
     const { dateFrom, dateTo, type, page = 1, limit = 25 } = req.query;
+    const generalSettings = await getResolvedGeneralSettings();
     const filter = {};
 
     if (type) filter.type = type;
     if (dateFrom || dateTo) {
+      const range = resolveBusinessDateRange({
+        dateFrom: dateFrom || dateTo,
+        dateTo: dateTo || dateFrom,
+        timezone: generalSettings.timezone,
+      });
       filter.entryDate = {};
-      if (dateFrom) filter.entryDate.$gte = new Date(dateFrom);
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        filter.entryDate.$lte = to;
-      }
+      if (dateFrom) filter.entryDate.$gte = range.dateFrom;
+      if (dateTo) filter.entryDate.$lte = range.dateTo;
     }
 
     const numericPage = parseInt(page, 10);
@@ -284,14 +276,19 @@ const deleteManualEntry = async (req, res, next) => {
 const getTopSelling = async (req, res, next) => {
   try {
     const { limit = 5, period, month } = req.query;
+    const generalSettings = await getResolvedGeneralSettings();
 
     let dateFilter = {};
     if (period === 'monthly' && month) {
-      const [y, m] = month.split('-').map(Number);
+      const { dateFrom, dateTo } = resolveBusinessDateRange({
+        period: 'daily',
+        month,
+        timezone: generalSettings.timezone,
+      });
       dateFilter = {
         createdAt: {
-          $gte: new Date(y, m - 1, 1),
-          $lte: new Date(y, m, 0, 23, 59, 59, 999),
+          $gte: dateFrom,
+          $lte: dateTo,
         },
       };
     }

@@ -15,10 +15,10 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import Link from "next/link";
-import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 
@@ -59,7 +59,7 @@ function KpiCard({ label, value, icon: Icon, accentColor, href }: KpiCardProps) 
     : inner;
 }
 
-function ChartTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, label, formatCurrency }: any) {
   if (!active || !payload?.length) return null;
   return (
     <Box sx={{ bgcolor: "background.paper", p: 1.5, borderRadius: 2, boxShadow: "0 20px 40px rgba(0,28,59,0.1)", minWidth: 150 }}>
@@ -67,7 +67,7 @@ function ChartTooltip({ active, payload, label }: any) {
       {payload.map((p: any) => (
         <Box key={p.dataKey} sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
           <Typography variant="caption" sx={{ color: p.fill }}>■ {p.name}</Typography>
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>Rs. {p.value.toLocaleString()}</Typography>
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>{formatCurrency(p.value)}</Typography>
         </Box>
       ))}
     </Box>
@@ -89,9 +89,9 @@ function mvLabel(m: any) {
 }
 
 export default function Dashboard() {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const initMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const { formatBusinessDate, formatCurrency, getBusinessMonthKey } = useGeneralSettings();
+  const initMonth = getBusinessMonthKey();
+  const currentYear = Number(initMonth.slice(0, 4));
 
   const [chartPeriod, setChartPeriod] = useState<"monthly" | "daily">("monthly");
   const [selectedMonth, setSelectedMonth] = useState(initMonth);
@@ -120,9 +120,9 @@ export default function Dashboard() {
         <Grid container spacing={2.5} sx={{ mb: 3 }}>
           {[
             { label: "Total Variants",   value: stats ? String(stats.totalVariants) : "—",                                          icon: IconPackage,       accentColor: "#1E3A5F" },
-            { label: "Stock Value",      value: stats ? `Rs. ${stats.stockValue.toLocaleString("en-GB", { maximumFractionDigits: 0 })}` : "—", icon: IconDatabase, accentColor: "#2E86AB" },
-            { label: "Month Revenue",    value: stats ? `Rs. ${stats.todayRevenue.toLocaleString()}` : "—",                          icon: IconTrendingUp,    accentColor: "#2e7d32" },
-            { label: "Month Profit",     value: stats ? `Rs. ${stats.monthlyProfit.toLocaleString()}` : "—",                         icon: IconCash,          accentColor: "#e65100" },
+            { label: "Stock Value",      value: stats ? formatCurrency(stats.stockValue, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : "—", icon: IconDatabase, accentColor: "#2E86AB" },
+            { label: "Month Revenue",    value: stats ? formatCurrency(stats.todayRevenue) : "—",                                    icon: IconTrendingUp,    accentColor: "#2e7d32" },
+            { label: "Month Profit",     value: stats ? formatCurrency(stats.monthlyProfit) : "—",                                   icon: IconCash,          accentColor: "#e65100" },
             { label: "Low Stock Alerts", value: stats ? String(stats.lowStockCount) : "—",                                          icon: IconAlertTriangle, accentColor: "#c62828", href: "/alerts/low-stock" },
           ].map((card) => (
             <Grid key={card.label} size={{ xs: 12, sm: 6, md: 4, lg: "auto" }} sx={{ flexGrow: 1 }}>
@@ -152,8 +152,8 @@ export default function Dashboard() {
               <BarChart data={chartData} barGap={4} barSize={chartPeriod === "monthly" ? 26 : 8}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(196,198,207,0.3)" vertical={false} />
                 <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#43474e" }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#43474e" }} tickFormatter={(v) => `Rs. ${v}`} width={60} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(30,58,95,0.04)" }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#43474e" }} tickFormatter={(v) => formatCurrency(v, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} width={100} />
+                <Tooltip content={<ChartTooltip formatCurrency={formatCurrency} />} cursor={{ fill: "rgba(30,58,95,0.04)" }} />
                 <Bar dataKey="revenue" name="Revenue" fill="#1E3A5F" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="profit"  name="Profit"  fill="#2e7d32" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -191,7 +191,7 @@ export default function Dashboard() {
                       {(stats.recentMovements ?? []).map((m: any) => (
                         <TableRow key={m._id} sx={{ "&:last-child td": { border: 0 } }}>
                           <TableCell>
-                            <Typography variant="caption" color="text.secondary">{dayjs(m.createdAt).format("DD MMM")}</Typography>
+                            <Typography variant="caption" color="text.secondary">{formatBusinessDate(m.createdAt, "DD MMM")}</Typography>
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 500, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

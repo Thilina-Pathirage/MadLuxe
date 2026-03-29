@@ -16,10 +16,12 @@ import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import StatusChip from "@/components/madlaxue/shared/StatusChip";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 
 export default function AllProductsPage() {
+  const { formatCurrency } = useGeneralSettings();
   const [variants, setVariants] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,7 +213,7 @@ export default function AllProductsPage() {
                                     { label: "Size" },
                                     { label: "SKU" },
                                     { label: "Stock", align: "center" as const },
-                                    { label: "Sell Rs.", align: "right" as const },
+                                    { label: "Sell", align: "right" as const },
                                     { label: "Status" },
                                   ].map(({ label, align }) => (
                                     <TableCell key={label} align={align}
@@ -252,7 +254,7 @@ export default function AllProductsPage() {
                                         <Typography variant="body2" sx={{ fontWeight: 700 }}>{v.stockQty}</Typography>
                                       </TableCell>
                                       <TableCell align="right" sx={{ bgcolor: "transparent" }}>
-                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>Rs.{v.sellPrice.toFixed(2)}</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(v.sellPrice)}</Typography>
                                       </TableCell>
                                       <TableCell sx={{ bgcolor: "transparent" }}>
                                         <StatusChip status={v.status} />

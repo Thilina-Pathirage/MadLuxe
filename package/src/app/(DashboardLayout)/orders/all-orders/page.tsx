@@ -9,7 +9,6 @@ import {
 } from "@mui/material";
 import { IconChevronDown, IconChevronUp, IconX, IconDownload, IconFileInvoice, IconTrash } from "@tabler/icons-react";
 import Link from "next/link";
-import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
@@ -18,6 +17,7 @@ import ConfirmDialog from "@/components/madlaxue/shared/ConfirmDialog";
 import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
 import OrderBillDialog from "@/components/madlaxue/shared/OrderBillDialog";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
+import { useGeneralSettings } from "@/context/GeneralSettingsContext";
 import { api, Order } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 
@@ -28,6 +28,7 @@ const STATUS_COLOR: Record<string, "success" | "warning" | "error" | "default"> 
 };
 
 export default function AllOrdersPage() {
+  const { formatBusinessDate, formatCurrency } = useGeneralSettings();
   const [orders, setOrders]         = useState<Order[]>([]);
   const [total, setTotal]           = useState(0);
   const [loading, setLoading]       = useState(true);
@@ -165,7 +166,7 @@ export default function AllOrdersPage() {
                       <Typography variant="body2" sx={{ fontWeight: 700, color: "primary.dark" }}>{o.orderRef}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="caption" color="text.secondary">{dayjs(o.createdAt).format("DD MMM YYYY")}</Typography>
+                      <Typography variant="caption" color="text.secondary">{formatBusinessDate(o.createdAt)}</Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>{o.customerName}</Typography>
@@ -175,19 +176,19 @@ export default function AllOrdersPage() {
                       <Chip label={o.items.length} size="small" sx={{ bgcolor: "grey.200", fontWeight: 600, minWidth: 32 }} />
                     </TableCell>
                     <TableCell align="right">
-                      <Typography variant="body2">Rs.{o.subtotal.toFixed(2)}</Typography>
+                      <Typography variant="body2">{formatCurrency(o.subtotal)}</Typography>
                     </TableCell>
                     <TableCell align="right">
                       {totalDiscount > 0 ? (
                         <Typography variant="body2" sx={{ color: "success.main", fontWeight: 600 }}>
-                          −Rs.{totalDiscount.toFixed(2)}
+                          −{formatCurrency(totalDiscount)}
                         </Typography>
                       ) : (
                         <Typography variant="caption" color="text.disabled">—</Typography>
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Rs.{o.total.toFixed(2)}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatCurrency(o.total)}</Typography>
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Chip
@@ -201,7 +202,7 @@ export default function AllOrdersPage() {
                       />
                       {o.deliveryFee > 0 && (
                         <Typography variant="caption" display="block" color="text.secondary">
-                          +Rs.{o.deliveryFee.toFixed(2)} delivery
+                          +{formatCurrency(o.deliveryFee)} delivery
                         </Typography>
                       )}
                     </TableCell>
@@ -277,17 +278,17 @@ export default function AllOrdersPage() {
                                     <Typography variant="body2">{item.qty}</Typography>
                                   </TableCell>
                                   <TableCell align="right" sx={{ bgcolor: "transparent" }}>
-                                    <Typography variant="body2">Rs.{item.unitPrice?.toFixed(2)}</Typography>
+                                    <Typography variant="body2">{formatCurrency(item.unitPrice)}</Typography>
                                   </TableCell>
                                   <TableCell align="right" sx={{ bgcolor: "transparent" }}>
-                                    <Tooltip title={`Profit: Rs.${itemProfit.toFixed(2)}`}>
+                                    <Tooltip title={`Profit: ${formatCurrency(itemProfit)}`}>
                                       <Typography variant="body2" color="text.secondary">
-                                        Rs.{batchCost?.toFixed(2) ?? "—"}
+                                        {formatCurrency(batchCost)}
                                       </Typography>
                                     </Tooltip>
                                   </TableCell>
                                   <TableCell align="right" sx={{ bgcolor: "transparent" }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Rs.{(item.lineFinal ?? item.lineTotal)?.toFixed(2)}</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(item.lineFinal ?? item.lineTotal)}</Typography>
                                   </TableCell>
                                 </TableRow>
                                 );
