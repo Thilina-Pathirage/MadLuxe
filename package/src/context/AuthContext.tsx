@@ -62,7 +62,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem(TOKEN_KEY, jwt);
     setToken(jwt);
     setUser(u);
-    router.push("/");
+    router.push("/portal");
   };
 
   const logout = () => {

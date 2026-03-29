@@ -113,6 +113,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/images/file', require('./routes/publicImages'));
 
+// Public data routes (no auth required)
+app.get('/api/public/categories', require('./controllers/categoryController').getAll);
+
 // Apply JWT protection to all subsequent /api/* routes
 app.use('/api', require('./middleware/protect'));
 

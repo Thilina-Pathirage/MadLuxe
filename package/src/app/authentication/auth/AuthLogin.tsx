@@ -8,7 +8,7 @@ import {
   Alert,
 } from "@mui/material";
 
-import CustomTextField from "@/app/(DashboardLayout)/components/forms/theme-elements/CustomTextField";
+import CustomTextField from "@/app/portal/components/forms/theme-elements/CustomTextField";
 import { useAuth } from "@/context/AuthContext";
 
 interface loginType {
