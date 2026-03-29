@@ -7,7 +7,7 @@ import {
   Select, MenuItem, Collapse, Snackbar, Alert, Pagination, Tooltip,
   CircularProgress,
 } from "@mui/material";
-import { IconChevronDown, IconChevronUp, IconX, IconDownload, IconFileInvoice } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconX, IconDownload, IconFileInvoice, IconTrash } from "@tabler/icons-react";
 import Link from "next/link";
 import dayjs from "dayjs";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
@@ -23,8 +23,8 @@ import { getPrimaryImageUrl } from "@/utils/variantImage";
 
 const PER_PAGE = 25;
 
-const STATUS_COLOR: Record<string, "success" | "warning" | "error"> = {
-  Completed: "success", Pending: "warning", Cancelled: "error",
+const STATUS_COLOR: Record<string, "success" | "warning" | "error" | "default"> = {
+  Completed: "success", Pending: "warning", Cancelled: "error", Deleted: "default",
 };
 
 export default function AllOrdersPage() {
@@ -38,6 +38,7 @@ export default function AllOrdersPage() {
   const [paymentFilter, setPayment] = useState("All");
   const [expanded, setExpanded]     = useState<Set<string>>(new Set());
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Order | null>(null);
   const [viewOrder, setViewOrder]   = useState<Order | null>(null);
   const [snackMsg, setSnackMsg]     = useState("");
   const [exportOpen, setExportOpen] = useState(false);
@@ -75,6 +76,14 @@ export default function AllOrdersPage() {
     fetchOrders();
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    await api.deleteOrder(deleteTarget._id);
+    setSnackMsg(`Order ${deleteTarget.orderRef} deleted.`);
+    setDeleteTarget(null);
+    fetchOrders();
+  };
+
   return (
     <PageContainer title="All Orders" description="Order management">
       <PageHeader
@@ -99,7 +108,7 @@ export default function AllOrdersPage() {
             <AppDatePicker label="To"   value={toDate}   onChange={(v) => handleFilter(() => setToDate(v))}   sx={{ width: 160 }} />
             <Select value={statusFilter} size="small" sx={{ minWidth: 130 }}
               onChange={(e) => handleFilter(() => setStatus(e.target.value))}>
-              {["All", "Completed", "Pending", "Cancelled"].map((s) =>
+              {["All", "Completed", "Pending", "Cancelled", "Deleted"].map((s) =>
                 <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </Select>
             <Select value={couponFilter} size="small" sx={{ minWidth: 150 }}
@@ -216,6 +225,13 @@ export default function AllOrdersPage() {
                           </IconButton>
                         </Tooltip>
                       )}
+                      {o.status !== "Deleted" && (
+                        <Tooltip title="Delete order">
+                          <IconButton size="small" sx={{ color: "error.main" }} onClick={() => setDeleteTarget(o)}>
+                            <IconTrash size={15} stroke={2} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>,
 
@@ -310,6 +326,15 @@ export default function AllOrdersPage() {
         confirmLabel="Cancel Order"
         onConfirm={handleCancel}
         onCancel={() => setCancelTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Order"
+        message={`Permanently delete order ${deleteTarget?.orderRef}? This will reverse all stock changes and remove it from financial reports. This cannot be undone.`}
+        confirmLabel="Delete Order"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
 
       <Snackbar open={!!snackMsg} autoHideDuration={3000} onClose={() => setSnackMsg("")}

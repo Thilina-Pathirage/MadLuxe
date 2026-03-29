@@ -164,6 +164,7 @@ const create = async (req, res, next) => {
       let totalCostAccumulator = 0;  // sum of (allocatedQty * costPrice) across all batches
       let totalSellAccumulator = 0;  // sum of (allocatedQty * sellPrice) across all batches
       let totalAllocated = 0;
+      const allocations = []; // Track all batch allocations for reversal
 
       // Allocate from batches in FIFO order
       for (const batch of batches) {
@@ -178,6 +179,8 @@ const create = async (req, res, next) => {
             costPrice: batch.costPrice
           };
         }
+
+        allocations.push({ batchId: batch._id, qty: allocateQty });
 
         // Accumulate weighted cost and sell price across all batches used
         totalCostAccumulator += allocateQty * (batch.costPrice || 0);
@@ -206,6 +209,7 @@ const create = async (req, res, next) => {
         : (item._variant.sellPrice || 0);
 
       // Store batch info in item for accurate P&L
+      item.batchAllocations = allocations;
       item.batchSourceMovementId = primaryBatch.batchId;
       item.batchCostPrice = weightedAvgCost;
       item.costPrice = weightedAvgCost;
@@ -368,4 +372,65 @@ const cancel = async (req, res, next) => {
   }
 };
 
-module.exports = { getAll, getOne, create, cancel };
+const deleteOrder = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return error(res, 'Order not found', 404);
+    if (order.status === 'Deleted') {
+      return error(res, 'Order already deleted', 400);
+    }
+
+    const needsStockRestore = order.status === 'Completed' || order.status === 'Pending';
+
+    for (const item of order.items) {
+      // Restore FIFO batch qtyRemaining (for all statuses — fixes cancel bug too)
+      if (item.batchAllocations && item.batchAllocations.length > 0) {
+        for (const alloc of item.batchAllocations) {
+          await StockMovement.findByIdAndUpdate(
+            alloc.batchId,
+            { $inc: { qtyRemaining: alloc.qty } }
+          );
+        }
+      } else if (item.batchSourceMovementId) {
+        // Legacy fallback: restore full qty to primary batch
+        await StockMovement.findByIdAndUpdate(
+          item.batchSourceMovementId,
+          { $inc: { qtyRemaining: item.qty } }
+        );
+      }
+
+      // Restore variant stock + create ADJUST movement (only if not already done by cancel)
+      if (needsStockRestore) {
+        const variant = await Variant.findById(item.variant);
+        if (!variant) continue;
+        const qtyBefore = variant.stockQty;
+        const qtyAfter = qtyBefore + item.qty;
+        await Variant.findByIdAndUpdate(item.variant, { $inc: { stockQty: item.qty } });
+        await StockMovement.create({
+          variant: item.variant,
+          type: 'ADJUST',
+          adjustDirection: 'add',
+          qty: item.qty,
+          qtyBefore,
+          qtyAfter,
+          reason: 'Order deleted',
+          orderId: order._id,
+        });
+      }
+    }
+
+    // Restore coupon usage (only if not already done by cancel)
+    if (needsStockRestore && order.coupon) {
+      await CouponCode.findByIdAndUpdate(order.coupon, { $inc: { usedCount: -1 } });
+    }
+
+    order.status = 'Deleted';
+    await order.save();
+
+    return success(res, { data: order }, 'Order deleted');
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { getAll, getOne, create, cancel, deleteOrder };

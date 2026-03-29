@@ -17,6 +17,11 @@ const orderItemSchema = new mongoose.Schema(
     batchSourceMovementId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockMovement', default: null }, // Which batch this came from
     batchCostPrice: { type: Number, default: null }, // Cost price from that specific batch
     batchSellPrice: { type: Number, default: null }, // Sell price from FIFO batch allocation
+    batchAllocations: [{
+      batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockMovement' },
+      qty: { type: Number },
+      _id: false,
+    }],
   },
   { _id: false }
 );
@@ -50,7 +55,7 @@ const orderSchema = new mongoose.Schema(
     deliveryFee: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: ['Pending', 'Completed', 'Cancelled'],
+      enum: ['Pending', 'Completed', 'Cancelled', 'Deleted'],
       default: 'Completed',
     },
     notes: { type: String, default: '' },

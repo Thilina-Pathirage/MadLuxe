@@ -1,34 +1,59 @@
 const Order = require('../models/Order');
-const { success } = require('../utils/apiResponse');
+const ManualFinanceEntry = require('../models/ManualFinanceEntry');
+const { success, error } = require('../utils/apiResponse');
 
 const round2 = (n) => Math.round(n * 100) / 100;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const resolveDateRange = ({ period = 'monthly', year, month, dateFrom: qDateFrom, dateTo: qDateTo }) => {
+  let dateFrom;
+  let dateTo;
+
+  if (qDateFrom && qDateTo) {
+    dateFrom = new Date(qDateFrom);
+    dateTo = new Date(qDateTo);
+    dateTo.setHours(23, 59, 59, 999);
+    return { dateFrom, dateTo };
+  }
+
+  if (period === 'daily' && month) {
+    const [y, m] = month.split('-').map(Number);
+    dateFrom = new Date(y, m - 1, 1);
+    dateTo = new Date(y, m, 0, 23, 59, 59, 999);
+    return { dateFrom, dateTo };
+  }
+
+  const y = parseInt(year, 10) || new Date().getFullYear();
+  dateFrom = new Date(y, 0, 1);
+  dateTo = new Date(y, 11, 31, 23, 59, 59, 999);
+  return { dateFrom, dateTo };
+};
+
+const bucketLabel = (date, period) => {
+  const d = new Date(date);
+  return period === 'daily'
+    ? String(d.getDate())
+    : d.toLocaleString('default', { month: 'short' });
+};
 
 const getSummary = async (req, res, next) => {
   try {
     const { period = 'monthly', year, month, paymentMethod, dateFrom: qDateFrom, dateTo: qDateTo } = req.query;
 
-    let dateFrom, dateTo;
-    if (qDateFrom && qDateTo) {
-      dateFrom = new Date(qDateFrom);
-      dateTo = new Date(qDateTo);
-      dateTo.setHours(23, 59, 59, 999);
-    } else if (period === 'daily' && month) {
-      const [y, m] = month.split('-').map(Number);
-      dateFrom = new Date(y, m - 1, 1);
-      dateTo = new Date(y, m, 0, 23, 59, 59, 999);
-    } else {
-      const y = parseInt(year) || new Date().getFullYear();
-      dateFrom = new Date(y, 0, 1);
-      dateTo = new Date(y, 11, 31, 23, 59, 59, 999);
-    }
+    const { dateFrom, dateTo } = resolveDateRange({ period, year, month, dateFrom: qDateFrom, dateTo: qDateTo });
 
     const filter = { status: 'Completed', createdAt: { $gte: dateFrom, $lte: dateTo } };
     if (paymentMethod) filter.paymentMethod = paymentMethod;
 
-    const orders = await Order.find(filter).select('total items createdAt paymentMethod');
+    const [orders, manualEntries] = await Promise.all([
+      Order.find(filter).select('total items createdAt paymentMethod'),
+      ManualFinanceEntry.find({ entryDate: { $gte: dateFrom, $lte: dateTo } }).select('type amount entryDate'),
+    ]);
 
     let totalRevenue = 0;
     let totalCost = 0;
+    let manualIncomeTotal = 0;
+    let manualExpenseTotal = 0;
 
     const buckets = {};
 
@@ -42,15 +67,26 @@ const getSummary = async (req, res, next) => {
       totalCost += orderCost;
 
       // Group by bucket label
-      const d = new Date(order.createdAt);
-      const label =
-        period === 'daily'
-          ? String(d.getDate())
-          : d.toLocaleString('default', { month: 'short' });
-
+      const label = bucketLabel(order.createdAt, period);
       if (!buckets[label]) buckets[label] = { revenue: 0, cost: 0 };
       buckets[label].revenue += order.total;
       buckets[label].cost += orderCost;
+    }
+
+    for (const entry of manualEntries) {
+      const amount = round2(entry.amount);
+      const label = bucketLabel(entry.entryDate, period);
+      if (!buckets[label]) buckets[label] = { revenue: 0, cost: 0 };
+
+      if (entry.type === 'income') {
+        totalRevenue += amount;
+        manualIncomeTotal += amount;
+        buckets[label].revenue += amount;
+      } else {
+        totalCost += amount;
+        manualExpenseTotal += amount;
+        buckets[label].cost += amount;
+      }
     }
 
     let codReceivable = 0;
@@ -77,7 +113,6 @@ const getSummary = async (req, res, next) => {
         return { label, revenue: round2(b.revenue), cost: round2(b.cost), profit: round2(b.revenue - b.cost) };
       });
     } else {
-      const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       chartData = MONTHS.map((label) => {
         const b = buckets[label] || { revenue: 0, cost: 0 };
         return { label, revenue: round2(b.revenue), cost: round2(b.cost), profit: round2(b.revenue - b.cost) };
@@ -92,6 +127,9 @@ const getSummary = async (req, res, next) => {
         profitMargin,
         codReceivable: round2(codReceivable),
         codOrderCount,
+        manualIncomeTotal: round2(manualIncomeTotal),
+        manualExpenseTotal: round2(manualExpenseTotal),
+        manualEntryCount: manualEntries.length,
         chartData,
       },
     });
@@ -104,20 +142,7 @@ const getBreakdown = async (req, res, next) => {
   try {
     const { period = 'monthly', year, month, category, paymentMethod, dateFrom: qDateFrom, dateTo: qDateTo, page = 1, limit = 25 } = req.query;
 
-    let dateFrom, dateTo;
-    if (qDateFrom && qDateTo) {
-      dateFrom = new Date(qDateFrom);
-      dateTo = new Date(qDateTo);
-      dateTo.setHours(23, 59, 59, 999);
-    } else if (period === 'daily' && month) {
-      const [y, m] = month.split('-').map(Number);
-      dateFrom = new Date(y, m - 1, 1);
-      dateTo = new Date(y, m, 0, 23, 59, 59, 999);
-    } else {
-      const y = parseInt(year) || new Date().getFullYear();
-      dateFrom = new Date(y, 0, 1);
-      dateTo = new Date(y, 11, 31, 23, 59, 59, 999);
-    }
+    const { dateFrom, dateTo } = resolveDateRange({ period, year, month, dateFrom: qDateFrom, dateTo: qDateTo });
 
     const breakdownFilter = { status: 'Completed', createdAt: { $gte: dateFrom, $lte: dateTo } };
     if (paymentMethod) breakdownFilter.paymentMethod = paymentMethod;
@@ -163,6 +188,94 @@ const getBreakdown = async (req, res, next) => {
       page: parseInt(page),
       totalPages: Math.ceil(total / parseInt(limit)),
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getManualEntries = async (req, res, next) => {
+  try {
+    const { dateFrom, dateTo, type, page = 1, limit = 25 } = req.query;
+    const filter = {};
+
+    if (type) filter.type = type;
+    if (dateFrom || dateTo) {
+      filter.entryDate = {};
+      if (dateFrom) filter.entryDate.$gte = new Date(dateFrom);
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        filter.entryDate.$lte = to;
+      }
+    }
+
+    const numericPage = parseInt(page, 10);
+    const numericLimit = parseInt(limit, 10);
+    const skip = (numericPage - 1) * numericLimit;
+
+    const [data, total] = await Promise.all([
+      ManualFinanceEntry.find(filter)
+        .populate('createdBy', 'username')
+        .select('-__v')
+        .sort({ entryDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(numericLimit),
+      ManualFinanceEntry.countDocuments(filter),
+    ]);
+
+    return success(res, {
+      data,
+      total,
+      page: numericPage,
+      totalPages: Math.ceil(total / numericLimit),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const createManualEntry = async (req, res, next) => {
+  try {
+    const { type, amount, reason, entryDate } = req.body;
+    const entry = await ManualFinanceEntry.create({
+      type,
+      amount: round2(Number(amount)),
+      reason,
+      entryDate,
+      createdBy: req.user.id,
+    });
+
+    return success(res, { data: entry }, 'Manual finance entry created', 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const updateManualEntry = async (req, res, next) => {
+  try {
+    const { type, amount, reason, entryDate } = req.body;
+    const entry = await ManualFinanceEntry.findById(req.params.id);
+    if (!entry) return error(res, 'Manual finance entry not found', 404);
+
+    entry.type = type;
+    entry.amount = round2(Number(amount));
+    entry.reason = reason;
+    entry.entryDate = entryDate;
+    await entry.save();
+
+    return success(res, { data: entry }, 'Manual finance entry updated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+const deleteManualEntry = async (req, res, next) => {
+  try {
+    const entry = await ManualFinanceEntry.findById(req.params.id);
+    if (!entry) return error(res, 'Manual finance entry not found', 404);
+
+    await entry.deleteOne();
+    return success(res, {}, 'Manual finance entry deleted');
   } catch (err) {
     next(err);
   }
@@ -217,4 +330,12 @@ const getTopSelling = async (req, res, next) => {
   }
 };
 
-module.exports = { getSummary, getBreakdown, getTopSelling };
+module.exports = {
+  getSummary,
+  getBreakdown,
+  getTopSelling,
+  getManualEntries,
+  createManualEntry,
+  updateManualEntry,
+  deleteManualEntry,
+};

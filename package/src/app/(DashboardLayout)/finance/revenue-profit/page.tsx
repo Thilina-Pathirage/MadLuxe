@@ -120,12 +120,25 @@ export default function RevenueProfitPage() {
     label: `${m} ${currentYear}`,
   }));
 
-  const kpi = summary ?? { totalRevenue: 0, totalCost: 0, grossProfit: 0, profitMargin: 0, codReceivable: 0, codOrderCount: 0 };
+  const kpi = summary ?? {
+    totalRevenue: 0,
+    totalCost: 0,
+    grossProfit: 0,
+    profitMargin: 0,
+    codReceivable: 0,
+    codOrderCount: 0,
+    manualIncomeTotal: 0,
+    manualExpenseTotal: 0,
+    manualEntryCount: 0,
+  };
   const chartData = summary?.chartData ?? [];
 
   return (
     <PageContainer title="Revenue & Profit" description="Financial performance">
-      <PageHeader title="Revenue & Profit" />
+      <PageHeader
+        title="Revenue & Profit"
+        subtitle={`Manual adjustments in selected range: ${kpi.manualEntryCount} entries`}
+      />
 
       {/* Controls */}
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mb: 3, alignItems: "center" }}>
@@ -163,6 +176,24 @@ export default function RevenueProfitPage() {
             <KpiCard {...c} />
           </Grid>
         ))}
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard
+            label="Manual Income"
+            value={`Rs. ${kpi.manualIncomeTotal.toLocaleString()}`}
+            sub={`${kpi.manualEntryCount} manual entries`}
+            icon={IconTrendingUp}
+            color="#00695c"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard
+            label="Manual Expense"
+            value={`Rs. ${kpi.manualExpenseTotal.toLocaleString()}`}
+            sub={`${kpi.manualEntryCount} manual entries`}
+            icon={IconShoppingCart}
+            color="#ad1457"
+          />
+        </Grid>
         {(paymentFilter === "All" || paymentFilter === "COD") && (
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <KpiCard

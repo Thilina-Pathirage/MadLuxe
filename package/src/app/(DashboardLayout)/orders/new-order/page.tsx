@@ -73,6 +73,8 @@ interface LineItem {
   discountType: "fixed" | "percent";
 }
 
+type DeliveryMethod = "Delivery" | "StorePickup";
+
 function formatVariantLabel(v: any) {
   const parts = [v.category?.name, v.productType?.name];
   if (v.size && v.size !== "N/A") parts.push(v.size);
@@ -81,6 +83,8 @@ function formatVariantLabel(v: any) {
 }
 
 const PHONE_MAX_DIGITS = 9;
+const INTEGER_PATTERN = /^\d*$/;
+const DECIMAL_PATTERN = /^\d*(\.\d{0,2})?$/;
 
 export default function NewOrderPage() {
   const router = useRouter();
@@ -101,7 +105,11 @@ export default function NewOrderPage() {
   const [size, setSize]       = useState("");
   const [colorId, setColorId] = useState("");
   const [addQty, setAddQty]   = useState(1);
+  const [addQtyInput, setAddQtyInput] = useState("1");
+  const [addQtyError, setAddQtyError] = useState("");
   const [addDiscount, setAddDiscount]     = useState(0);
+  const [addDiscountInput, setAddDiscountInput] = useState("0");
+  const [addDiscountError, setAddDiscountError] = useState("");
   const [addDiscountType, setAddDiscountType] = useState<"fixed" | "percent">("fixed");
 
   // Variant lookup
@@ -127,7 +135,10 @@ export default function NewOrderPage() {
 
   // Payment method
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "BankTransfer">("BankTransfer");
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("Delivery");
   const [deliveryFee, setDeliveryFee]     = useState(300);
+  const [deliveryFeeInput, setDeliveryFeeInput] = useState("300");
+  const [deliveryFeeError, setDeliveryFeeError] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [snackMsg, setSnackMsg]     = useState("");
@@ -260,7 +271,9 @@ export default function NewOrderPage() {
       }]);
     }
     setCatId(""); setTypeId(""); setSize(""); setColorId("");
-    setAddQty(1); setAddDiscount(0); setAddDiscountType("fixed");
+    setAddQty(1); setAddQtyInput("1"); setAddQtyError("");
+    setAddDiscount(0); setAddDiscountInput("0"); setAddDiscountError("");
+    setAddDiscountType("fixed");
     // Clear coupon when items change
     if (appliedCoupon) { setAppliedCoupon(""); setCouponDiscount(0); setCouponSuccess(""); }
   };
@@ -318,6 +331,80 @@ export default function NewOrderPage() {
     }
   };
 
+  const handleDeliveryMethodChange = (method: DeliveryMethod) => {
+    setDeliveryMethod(method);
+    setDeliveryFeeError("");
+    if (method === "StorePickup") {
+      setDeliveryFee(0);
+      setDeliveryFeeInput("");
+      return;
+    }
+
+    const parsed = Number(deliveryFeeInput);
+    const hasCurrentFee = deliveryFeeInput.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
+    if (hasCurrentFee) {
+      setDeliveryFee(parsed);
+      return;
+    }
+
+    setDeliveryFee(300);
+    setDeliveryFeeInput("300");
+  };
+
+  const handleDeliveryFeeChange = (value: string) => {
+    if (!DECIMAL_PATTERN.test(value)) {
+      setDeliveryFeeError("Only numeric values are allowed.");
+      return;
+    }
+
+    setDeliveryFeeError("");
+    setDeliveryFeeInput(value);
+    if (value === "") {
+      setDeliveryFee(0);
+      return;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    setDeliveryFee(Math.max(0, parsed));
+  };
+
+  const handleAddQtyChange = (value: string) => {
+    if (!INTEGER_PATTERN.test(value)) {
+      setAddQtyError("Only numeric values are allowed.");
+      return;
+    }
+
+    setAddQtyError("");
+    setAddQtyInput(value);
+    if (value === "") {
+      setAddQty(0);
+      return;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    setAddQty(Math.max(1, parsed));
+  };
+
+  const handleAddDiscountChange = (value: string) => {
+    if (!DECIMAL_PATTERN.test(value)) {
+      setAddDiscountError("Only numeric values are allowed.");
+      return;
+    }
+
+    setAddDiscountError("");
+    setAddDiscountInput(value);
+    if (value === "") {
+      setAddDiscount(0);
+      return;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    setAddDiscount(Math.max(0, parsed));
+  };
+
   const handleConfirmOrder = async () => {
     if (lines.length === 0) return;
     if (!ensurePhoneIsValid()) {
@@ -351,7 +438,11 @@ export default function NewOrderPage() {
       setCouponInput(""); setAppliedCoupon(""); setCouponDiscount(0);
       setCouponSuccess(""); setCouponError("");
       setManualDiscount(0); setManualDiscountType("fixed");
-      setPaymentMethod("BankTransfer"); setDeliveryFee(0);
+      setPaymentMethod("BankTransfer");
+      setDeliveryMethod("StorePickup");
+      setDeliveryFee(0);
+      setDeliveryFeeInput("");
+      setDeliveryFeeError("");
     } catch (err: any) {
       setSnackSeverity("error");
       setSnackMsg(err.message ?? "Failed to create order.");
@@ -409,17 +500,22 @@ export default function NewOrderPage() {
                   </TextField>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 4 }}>
-                  <TextField select label="Delivery Method" value={deliveryFee > 0 ? "Delivery" : "StorePickup"} size="small" fullWidth
-                    onChange={(e) => setDeliveryFee(e.target.value === "Delivery" ? 300 : 0)}>
+                  <TextField select label="Delivery Method" value={deliveryMethod} size="small" fullWidth
+                    onChange={(e) => handleDeliveryMethodChange(e.target.value as DeliveryMethod)}>
                     <MenuItem value="Delivery">Delivery</MenuItem>
                     <MenuItem value="StorePickup">Store Pickup</MenuItem>
                   </TextField>
                 </Grid>
-                {deliveryFee > 0 && (
+                {deliveryMethod === "Delivery" && (
                   <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField type="number" label="Delivery Fee" value={deliveryFee} size="small" fullWidth
-                      onChange={(e) => setDeliveryFee(Math.max(0, Number(e.target.value)))}
-                      slotProps={{ input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }} />
+                    <TextField label="Delivery Fee" value={deliveryFeeInput} size="small" fullWidth
+                      error={!!deliveryFeeError}
+                      helperText={deliveryFeeError}
+                      onChange={(e) => handleDeliveryFeeChange(e.target.value)}
+                      slotProps={{
+                        input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> },
+                        htmlInput: { inputMode: "decimal" },
+                      }} />
                   </Grid>
                 )}
               </Grid>
@@ -456,19 +552,23 @@ export default function NewOrderPage() {
                   </TextField>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 2 }}>
-                  <TextField label="Qty" type="number" value={addQty} size="small" fullWidth
-                    onChange={(e) => setAddQty(Math.max(1, Number(e.target.value)))}
-                    slotProps={{ htmlInput: { min: 1 } }} />
+                  <TextField label="Qty" value={addQtyInput} size="small" fullWidth
+                    error={!!addQtyError}
+                    helperText={addQtyError}
+                    onChange={(e) => handleAddQtyChange(e.target.value)}
+                    slotProps={{ htmlInput: { inputMode: "numeric" } }} />
                 </Grid>
 
                 {/* Per-item discount */}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
-                    type="number" label="Item Discount" placeholder="0"
-                    value={addDiscount}
-                    onChange={(e) => setAddDiscount(Math.max(0, Number(e.target.value)))}
+                    label="Item Discount" placeholder="0"
+                    value={addDiscountInput}
+                    error={!!addDiscountError}
+                    helperText={addDiscountError}
+                    onChange={(e) => handleAddDiscountChange(e.target.value)}
                     size="small" fullWidth
-                    slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                    slotProps={{ htmlInput: { inputMode: "decimal" } }}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>

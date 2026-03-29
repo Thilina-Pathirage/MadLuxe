@@ -9,13 +9,14 @@ import {
 } from "@mui/material";
 import { IconDownload } from "@tabler/icons-react";
 import dayjs from "dayjs";
+import { useRouter, useSearchParams } from "next/navigation";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
 import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
-import { api, type StockMovement } from "@/lib/api";
+import { api, type StockMovement, type Variant } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 
 const today = dayjs().format("YYYY-MM-DD");
@@ -31,6 +32,10 @@ function mvLabel(m: any) {
 }
 
 export default function StockInPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillVariantId = searchParams.get("variantId") ?? "";
+
   // Dropdown options
   const [categories, setCategories]   = useState<any[]>([]);
   const [productTypes, setProductTypes] = useState<any[]>([]);
@@ -63,6 +68,32 @@ export default function StockInPage() {
 
   const [snackMsg, setSnackMsg]   = useState("");
   const [exportOpen, setExportOpen] = useState(false);
+  const [prefillVariant, setPrefillVariant] = useState<Variant | null>(null);
+  const [prefillError, setPrefillError] = useState("");
+  const [prefillApplied, setPrefillApplied] = useState(false);
+
+  useEffect(() => {
+    if (!prefillVariantId || prefillApplied || prefillVariant) return;
+    setPrefillError("");
+    api.getVariant(prefillVariantId)
+      .then((res: any) => {
+        const variant = res?.data as Variant | undefined;
+        const prefillCatId = variant?.category?._id;
+        const prefillTypeId = variant?.productType?._id;
+        const prefillColorId = variant?.color?._id;
+        if (!variant || !prefillCatId || !prefillTypeId || !prefillColorId) {
+          setPrefillError("Quick Restock could not prefill this variant. Please choose fields manually.");
+          setPrefillApplied(true);
+          return;
+        }
+        setPrefillVariant(variant);
+        setCatId(prefillCatId);
+      })
+      .catch(() => {
+        setPrefillError("Quick Restock link is invalid or the variant was not found.");
+        setPrefillApplied(true);
+      });
+  }, [prefillVariantId, prefillApplied, prefillVariant]);
 
   // Load static options once
   useEffect(() => {
@@ -76,6 +107,53 @@ export default function StockInPage() {
     api.getProductTypes(catId).then((r: any) => setProductTypes(r.data ?? []));
     setTypeId(""); setSize("");
   }, [catId]);
+
+  useEffect(() => {
+    if (!prefillVariant || prefillApplied) return;
+
+    const prefillCatId = prefillVariant.category?._id;
+    const prefillTypeId = prefillVariant.productType?._id;
+    const prefillColorId = prefillVariant.color?._id;
+    const requestedSize = prefillVariant.size || "N/A";
+
+    if (!prefillCatId || !prefillTypeId || !prefillColorId) {
+      setPrefillError("Quick Restock data is incomplete. Please choose fields manually.");
+      setPrefillApplied(true);
+      setPrefillVariant(null);
+      return;
+    }
+
+    if (catId !== prefillCatId) {
+      setCatId(prefillCatId);
+      return;
+    }
+
+    if (!productTypes.length) return;
+
+    const selectedPrefillType = productTypes.find((t) => t._id === prefillTypeId);
+    if (!selectedPrefillType) {
+      setPrefillError("Quick Restock type is unavailable for this category. Please choose fields manually.");
+      setPrefillApplied(true);
+      setPrefillVariant(null);
+      return;
+    }
+
+    const resolvedSize = selectedPrefillType.hasSizes ? requestedSize : "N/A";
+    const sizeExists = !selectedPrefillType.hasSizes || (selectedPrefillType.sizes ?? []).includes(resolvedSize);
+    if (!sizeExists) {
+      setPrefillError("Quick Restock size is unavailable for this type. Please choose fields manually.");
+      setPrefillApplied(true);
+      setPrefillVariant(null);
+      return;
+    }
+
+    setTypeId(prefillTypeId);
+    setSize(resolvedSize);
+    setColorId(prefillColorId);
+    setPrefillApplied(true);
+    setPrefillVariant(null);
+    router.replace("/inventory/stock-in");
+  }, [catId, prefillApplied, prefillVariant, productTypes, router]);
 
   const selectedType = productTypes.find((t) => t._id === typeId);
   const sizeOptions  = selectedType?.hasSizes ? selectedType.sizes : ["N/A"];
@@ -104,6 +182,7 @@ export default function StockInPage() {
   useEffect(() => {
     if (matchedVariant?.sellPrice != null) {
       setSellUnit(String(matchedVariant.sellPrice));
+      setCostUnit((prev) => prev || (matchedVariant.costPrice != null ? String(matchedVariant.costPrice) : ""));
     } else {
       setSellUnit("");
     }
@@ -157,6 +236,11 @@ export default function StockInPage() {
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ p: 3 }}>
           <Typography variant="h6" sx={{ color: "primary.dark", mb: 2.5 }}>Add Inventory</Typography>
+          {!!prefillError && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {prefillError}
+            </Alert>
+          )}
 
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -311,7 +395,7 @@ export default function StockInPage() {
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <AppDatePicker label="Date" value={date} onChange={setDate} required />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField label="Supplier / Source" value={supplier} size="small" fullWidth
                 onChange={(e) => setSupplier(e.target.value)} />
             </Grid>

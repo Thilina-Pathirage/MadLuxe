@@ -49,6 +49,10 @@
   GET    /api/finance/summary?period=monthly&year=2025
   GET    /api/finance/breakdown?period=monthly&year=2025&category=id&page=1&limit=25
   GET    /api/finance/top-selling?limit=5&period=monthly&month=2025-01
+  GET    /api/finance/manual-entries?type=income&dateFrom=2026-01-01&dateTo=2026-01-31&page=1&limit=25
+  POST   /api/finance/manual-entries
+  PUT    /api/finance/manual-entries/:id
+  DELETE /api/finance/manual-entries/:id
 
   POST   /api/images/upload/:variantId  (multipart/form-data, field: images)
   PUT    /api/images/:variantId/primary/:imageId

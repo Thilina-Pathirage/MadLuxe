@@ -125,6 +125,7 @@ export interface OrderItem {
   batchSourceMovementId: string | null; // FIFO: which stock-in batch this came from
   batchCostPrice: number | null;        // FIFO: actual cost from that batch
   batchSellPrice: number | null;       // FIFO: sell price from batch allocation
+  batchAllocations?: { batchId: string; qty: number }[];
 }
 
 export interface Order {
@@ -143,7 +144,7 @@ export interface Order {
   total: number;
   paymentMethod: 'COD' | 'BankTransfer';
   deliveryFee: number;
-  status: 'Pending' | 'Completed' | 'Cancelled';
+  status: 'Pending' | 'Completed' | 'Cancelled' | 'Deleted';
   createdAt: string;
 }
 
@@ -185,8 +186,31 @@ export interface FinanceSummary {
   profitMargin: number;
   codReceivable: number;
   codOrderCount: number;
+  manualIncomeTotal: number;
+  manualExpenseTotal: number;
+  manualEntryCount: number;
   chartData: { label: string; revenue: number; cost: number; profit: number }[];
 }
+
+export interface ManualFinanceEntry {
+  _id: string;
+  type: 'income' | 'expense';
+  amount: number;
+  reason: string;
+  entryDate: string;
+  createdBy?: { _id: string; username: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateManualFinanceEntryInput {
+  type: 'income' | 'expense';
+  amount: number;
+  reason: string;
+  entryDate: string;
+}
+
+export interface UpdateManualFinanceEntryInput extends CreateManualFinanceEntryInput {}
 
 export interface DashboardStats {
   totalVariants: number;
@@ -290,6 +314,8 @@ export const api = {
     request<ApiResponse<Order>>('/orders', { method: 'POST', body: JSON.stringify(data) }),
   cancelOrder: (id: string) =>
     request<ApiResponse<Order>>(`/orders/${id}/cancel`, { method: 'PATCH' }),
+  deleteOrder: (id: string) =>
+    request<ApiResponse<Order>>(`/orders/${id}`, { method: 'DELETE' }),
 
   // Coupons
   getCoupons: (params?: Record<string, string>) =>
@@ -315,6 +341,22 @@ export const api = {
     request<PaginatedResponse<unknown>>('/finance/breakdown?' + new URLSearchParams(params ?? {})),
   getTopSelling: (params?: Record<string, string>) =>
     request<ApiResponse<unknown[]>>('/finance/top-selling?' + new URLSearchParams(params ?? {})),
+  getManualFinanceEntries: (params?: Record<string, string>) =>
+    request<PaginatedResponse<ManualFinanceEntry>>('/finance/manual-entries?' + new URLSearchParams(params ?? {})),
+  createManualFinanceEntry: (data: CreateManualFinanceEntryInput) =>
+    request<ApiResponse<ManualFinanceEntry>>('/finance/manual-entries', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateManualFinanceEntry: (id: string, data: UpdateManualFinanceEntryInput) =>
+    request<ApiResponse<ManualFinanceEntry>>(`/finance/manual-entries/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteManualFinanceEntry: (id: string) =>
+    request<ApiResponse<unknown>>(`/finance/manual-entries/${id}`, {
+      method: 'DELETE',
+    }),
 
   // Categories
   getCategories: () => request<ApiResponse<unknown[]>>('/categories'),

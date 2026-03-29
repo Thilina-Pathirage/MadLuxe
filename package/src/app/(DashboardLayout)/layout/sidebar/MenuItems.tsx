@@ -53,6 +53,7 @@ const Menuitems = [
     icon: IconCash,
     children: [
       { id: uniqueId(), title: "Revenue & Profit", href: "/finance/revenue-profit" },
+      { id: uniqueId(), title: "Manual Entries",   href: "/finance/manual-entries" },
       { id: uniqueId(), title: "Coupon Codes",     href: "/finance/coupon-codes"   },
     ],
   },
