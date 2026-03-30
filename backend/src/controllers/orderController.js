@@ -379,6 +379,23 @@ const cancel = async (req, res, next) => {
   }
 };
 
+const complete = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return error(res, 'Order not found', 404);
+    if (order.status !== 'Pending') {
+      return error(res, 'Only Pending orders can be marked as completed', 400);
+    }
+
+    order.status = 'Completed';
+    await order.save();
+
+    return success(res, { data: order }, 'Order marked as completed');
+  } catch (err) {
+    next(err);
+  }
+};
+
 const deleteOrder = async (req, res, next) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -440,4 +457,4 @@ const deleteOrder = async (req, res, next) => {
   }
 };
 
-module.exports = { getAll, getOne, create, cancel, deleteOrder };
+module.exports = { getAll, getOne, create, cancel, complete, deleteOrder };

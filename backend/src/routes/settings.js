@@ -32,6 +32,11 @@ router.put(
     body('defaultDeliveryFee')
       .isFloat({ min: 0 })
       .withMessage('Default delivery fee must be >= 0'),
+    body('sellerWhatsappPhone')
+      .optional({ values: 'falsy' })
+      .trim()
+      .matches(/^\+?[0-9\s()-]{7,20}$/)
+      .withMessage('Seller WhatsApp phone must be a valid phone number'),
   ],
   validate,
   generalCtrl.updateGeneralSettings

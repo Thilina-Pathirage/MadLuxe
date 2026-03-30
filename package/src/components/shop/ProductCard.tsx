@@ -15,10 +15,10 @@ import { alpha, useTheme } from "@mui/material/styles";
 import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 import StatusChip from "@/components/madlaxue/shared/StatusChip";
-import type { PublicVariant } from "@/lib/api";
+import type { PublicBatch } from "@/lib/api";
 
 interface ProductCardProps {
-  variant: PublicVariant;
+  batch: PublicBatch;
   formatPrice: (value: number) => string;
 }
 
@@ -34,27 +34,38 @@ const CATEGORY_PALETTES = [
 const hashString = (value: string): number =>
   value.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-const ProductCard = ({ variant, formatPrice }: ProductCardProps) => {
+const formatBatchLabel = (batch: PublicBatch) => {
+  const batchDate = new Date(batch.createdAt);
+  const shortId = batch.batchId.slice(-6).toUpperCase();
+  const formattedDate = Number.isNaN(batchDate.getTime())
+    ? "Unknown date"
+    : batchDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return `${formattedDate} · #${shortId}`;
+};
+
+const ProductCard = ({ batch, formatPrice }: ProductCardProps) => {
   const router = useRouter();
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const accent = "#C9A84C";
+  const variant = batch.variant;
 
   const imageUrl = getPrimaryImageUrl(variant);
-  const isOutOfStock = variant.stockQty === 0;
+  const isOutOfStock = batch.qtyRemaining <= 0;
   const status: "In Stock" | "Low Stock" | "Out of Stock" =
-    variant.stockQty === 0
+    batch.qtyRemaining <= 0
       ? "Out of Stock"
-      : variant.stockQty <= 5
+      : batch.qtyRemaining <= 5
         ? "Low Stock"
         : "In Stock";
 
   const hash = hashString(variant.productType?.name ?? "item");
   const palette = CATEGORY_PALETTES[hash % CATEGORY_PALETTES.length];
   const fallbackGradient = `linear-gradient(140deg, ${palette[0]} 5%, ${palette[1]} 58%, ${palette[2]} 100%)`;
-  const detailHref = `/shop/product/${variant._id}`;
+  const detailHref = `/shop/product/${variant._id}?batch=${batch.batchId}`;
 
   const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (isOutOfStock) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       router.push(detailHref);
@@ -65,8 +76,10 @@ const ProductCard = ({ variant, formatPrice }: ProductCardProps) => {
     <Card
       role="link"
       tabIndex={0}
-      aria-label={`View ${variant.productType?.name ?? "product"}`}
-      onClick={() => router.push(detailHref)}
+      aria-label={`View stock for ${variant.productType?.name ?? "product"}`}
+      onClick={() => {
+        if (!isOutOfStock) router.push(detailHref);
+      }}
       onKeyDown={handleCardKeyDown}
       elevation={0}
       sx={{
@@ -74,14 +87,17 @@ const ProductCard = ({ variant, formatPrice }: ProductCardProps) => {
         overflow: "hidden",
         border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.08)}`,
         bgcolor: isDark ? alpha("#0D1825", 0.7) : "#FFFFFF",
+        opacity: isOutOfStock ? 0.75 : 1,
         transition:
           "transform 300ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 300ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 300ms ease",
         "&:hover": {
-          transform: "translateY(-4px)",
-          borderColor: alpha(accent, 0.4),
-          boxShadow: isDark
-            ? `0 16px 36px rgba(0,0,0,0.35)`
-            : `0 16px 36px rgba(15,26,42,0.12)`,
+          transform: isOutOfStock ? "none" : "translateY(-4px)",
+          borderColor: isOutOfStock ? undefined : alpha(accent, 0.4),
+          boxShadow: isOutOfStock
+            ? undefined
+            : isDark
+              ? `0 16px 36px rgba(0,0,0,0.35)`
+              : `0 16px 36px rgba(15,26,42,0.12)`,
         },
       }}
     >
@@ -134,6 +150,18 @@ const ProductCard = ({ variant, formatPrice }: ProductCardProps) => {
           }}
         >
           {variant.category?.name}
+        </Typography>
+
+        <Typography
+          sx={{
+            fontSize: "0.7rem",
+            color: isDark ? alpha("#D8D4CC", 0.64) : alpha("#2C3A4E", 0.58),
+            fontWeight: 600,
+            mb: 1.1,
+            letterSpacing: "0.02em",
+          }}
+        >
+          Stock {formatBatchLabel(batch)}
         </Typography>
 
         {/* Color & Size */}
@@ -189,43 +217,22 @@ const ProductCard = ({ variant, formatPrice }: ProductCardProps) => {
             mt: "auto",
           }}
         >
-          <Typography
-            sx={{
-              fontWeight: 800,
-              fontSize: "1.05rem",
-              color: accent,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {formatPrice(variant.sellPrice)}
-          </Typography>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={isOutOfStock}
-            onClick={(event) => event.stopPropagation()}
-            startIcon={<ShoppingCartOutlinedIcon sx={{ fontSize: "16px !important" }} />}
-            sx={{
-              fontSize: "0.7rem",
-              fontWeight: 600,
-              textTransform: "none",
-              borderRadius: "6px",
-              px: 1.5,
-              py: 0.4,
-              borderColor: isOutOfStock
-                ? undefined
-                : alpha(accent, 0.5),
-              color: isOutOfStock ? undefined : accent,
-              "&:hover": isOutOfStock
-                ? undefined
-                : {
-                    borderColor: accent,
-                    bgcolor: alpha(accent, 0.08),
-                  },
-            }}
-          >
-            {isOutOfStock ? "Sold Out" : "Add to Cart"}
-          </Button>
+          <Box>
+            <Typography
+              sx={{
+                fontWeight: 800,
+                fontSize: "1.05rem",
+                color: accent,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {formatPrice(batch.sellPrice)}
+            </Typography>
+            <Typography sx={{ fontSize: "0.7rem", color: isDark ? alpha("#D8D4CC", 0.7) : alpha("#2C3A4E", 0.62) }}>
+              {batch.qtyRemaining} available
+            </Typography>
+          </Box>
+          
         </Box>
       </CardContent>
     </Card>

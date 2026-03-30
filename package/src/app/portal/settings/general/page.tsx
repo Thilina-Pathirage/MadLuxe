@@ -53,7 +53,8 @@ export default function GeneralSettingsPage() {
       form.currencyCode !== settings.currencyCode ||
       form.timezone !== settings.timezone ||
       form.defaultLowStockThreshold !== settings.defaultLowStockThreshold ||
-      form.defaultDeliveryFee !== settings.defaultDeliveryFee,
+      form.defaultDeliveryFee !== settings.defaultDeliveryFee ||
+      form.sellerWhatsappPhone !== settings.sellerWhatsappPhone,
     [form, settings]
   );
 
@@ -65,6 +66,7 @@ export default function GeneralSettingsPage() {
         timezone: form.timezone,
         defaultLowStockThreshold: Number(form.defaultLowStockThreshold),
         defaultDeliveryFee: Number(form.defaultDeliveryFee),
+        sellerWhatsappPhone: form.sellerWhatsappPhone.trim(),
       });
       setSnackSeverity("success");
       setSnackMsg("General settings saved successfully.");
@@ -166,6 +168,22 @@ export default function GeneralSettingsPage() {
               }
               slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
               helperText="Prefills new delivery orders and remains editable per order."
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="Seller WhatsApp Phone"
+              value={form.sellerWhatsappPhone}
+              size="small"
+              fullWidth
+              disabled={loading}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  sellerWhatsappPhone: event.target.value,
+                }))
+              }
+              helperText='Used by public Bank Transfer checkout popup (example: +94770000000).'
             />
           </Grid>
         </Grid>

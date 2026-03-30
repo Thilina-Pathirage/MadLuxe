@@ -208,6 +208,7 @@ export interface GeneralSettings {
   timezone: string;
   defaultLowStockThreshold: number;
   defaultDeliveryFee: number;
+  sellerWhatsappPhone: string;
 }
 
 export interface ImageAsset {
@@ -278,10 +279,35 @@ export interface PublicVariant {
   createdAt: string;
 }
 
+export interface PublicBatch {
+  _id: string;
+  batchId: string;
+  createdAt: string;
+  sellPrice: number;
+  qtyRemaining: number;
+  variant: PublicVariant;
+}
+
 export interface PublicSettings {
   currencyCode: 'LKR' | 'USD' | 'EUR' | 'GBP';
   timezone: string;
   defaultDeliveryFee: number;
+  sellerWhatsappPhone: string;
+}
+
+export interface PublicCreateOrderItem {
+  variantId: string;
+  batchId: string;
+  qty: number;
+}
+
+export interface PublicCreateOrderInput {
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  paymentMethod: 'COD' | 'BankTransfer';
+  deliveryFee?: number;
+  items: PublicCreateOrderItem[];
 }
 
 export interface PublicTopSellingItem {
@@ -306,8 +332,13 @@ export interface Category {
 
 // ─── Public API (no auth) ─────────────────────────────────────────────────
 
-async function publicRequest<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+async function publicRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const isFormData = options?.body instanceof FormData;
+  const headers: Record<string, string> = isFormData
+    ? {}
+    : { 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) };
+
+  const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { message?: string }).message ?? `API error ${res.status}`);
@@ -316,6 +347,10 @@ async function publicRequest<T>(path: string): Promise<T> {
 }
 
 export const publicApi = {
+  getBatches: (params?: Record<string, string>) =>
+    publicRequest<PaginatedResponse<PublicBatch>>(
+      '/public/batches?' + new URLSearchParams(params ?? {})
+    ),
   getVariants: (params?: Record<string, string>) =>
     publicRequest<PaginatedResponse<PublicVariant>>(
       '/public/variants?' + new URLSearchParams(params ?? {})
@@ -332,6 +367,11 @@ export const publicApi = {
     publicRequest<ApiResponse<PublicSettings>>('/public/settings'),
   getTopSelling: (limit = 6) =>
     publicRequest<ApiResponse<PublicTopSellingItem[]>>(`/public/top-selling?limit=${limit}`),
+  createOrder: (data: PublicCreateOrderInput) =>
+    publicRequest<ApiResponse<Order>>('/public/orders', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // ─── API Methods ──────────────────────────────────────────────────────────
@@ -424,6 +464,8 @@ export const api = {
     request<ApiResponse<Order>>('/orders', { method: 'POST', body: JSON.stringify(data) }),
   cancelOrder: (id: string) =>
     request<ApiResponse<Order>>(`/orders/${id}/cancel`, { method: 'PATCH' }),
+  completeOrder: (id: string) =>
+    request<ApiResponse<Order>>(`/orders/${id}/complete`, { method: 'PATCH' }),
   deleteOrder: (id: string) =>
     request<ApiResponse<Order>>(`/orders/${id}`, { method: 'DELETE' }),
 

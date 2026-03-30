@@ -17,7 +17,7 @@ import ProductCard from "@/components/shop/ProductCard";
 import {
   publicApi,
   type Category,
-  type PublicVariant,
+  type PublicBatch,
   type PublicSettings,
 } from "@/lib/api";
 
@@ -36,7 +36,7 @@ export default function ShopAllPage() {
   const textPrimary = isDark ? "#F0EDE8" : "#0F1A2A";
   const textMuted = isDark ? alpha("#D8D4CC", 0.72) : alpha("#2C3A4E", 0.68);
 
-  const [variants, setVariants] = useState<PublicVariant[]>([]);
+  const [batches, setBatches] = useState<PublicBatch[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,7 +60,7 @@ export default function ShopAllPage() {
     publicApi.getSettings().then((r) => setSettings(r.data)).catch(() => {});
   }, []);
 
-  // Load variants when filters change
+  // Load batches when filters change
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -68,20 +68,20 @@ export default function ShopAllPage() {
     const params: Record<string, string> = {
       page: String(page),
       limit: "24",
+      inStock: inStockOnly ? "true" : "false",
     };
-    if (inStockOnly) params.inStock = "true";
     if (selectedCategory) params.category = selectedCategory;
 
     publicApi
-      .getVariants(params)
+      .getBatches(params)
       .then((r) => {
         if (cancelled) return;
-        setVariants(r.data ?? []);
+        setBatches(r.data ?? []);
         setTotal(r.total ?? 0);
         setTotalPages(r.totalPages ?? 1);
       })
       .catch(() => {
-        if (!cancelled) setVariants([]);
+        if (!cancelled) setBatches([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -201,7 +201,7 @@ export default function ShopAllPage() {
 
         {!loading && (
           <Typography sx={{ fontSize: "0.78rem", color: textMuted, whiteSpace: "nowrap" }}>
-            {total} product{total !== 1 ? "s" : ""}
+            {total} stock{total !== 1 ? "s" : ""}
           </Typography>
         )}
       </Box>
@@ -235,10 +235,10 @@ export default function ShopAllPage() {
             </Box>
           ))}
         </Box>
-      ) : variants.length === 0 ? (
+      ) : batches.length === 0 ? (
         <Box sx={{ textAlign: "center", py: 10 }}>
           <Typography sx={{ fontSize: "1.1rem", color: textMuted, fontWeight: 500 }}>
-            No products found
+            No stock found
           </Typography>
           <Typography sx={{ fontSize: "0.85rem", color: alpha(textMuted, 0.7), mt: 1 }}>
             {inStockOnly
@@ -255,8 +255,8 @@ export default function ShopAllPage() {
             gap: { xs: 1.8, md: 2.2 },
           }}
         >
-          {variants.map((v) => (
-            <ProductCard key={v._id} variant={v} formatPrice={formatPrice} />
+          {batches.map((batch) => (
+            <ProductCard key={batch.batchId} batch={batch} formatPrice={formatPrice} />
           ))}
         </Box>
       )}

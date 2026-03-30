@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Alert,
@@ -19,9 +19,16 @@ import { alpha, useTheme } from "@mui/material/styles";
 import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import ArrowForwardIosRoundedIcon from "@mui/icons-material/ArrowForwardIosRounded";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded";
 import StatusChip from "@/components/madlaxue/shared/StatusChip";
-import { publicApi, type PublicSettings, type PublicVariant } from "@/lib/api";
+import { publicApi, type PublicBatch, type PublicSettings, type PublicVariant } from "@/lib/api";
 import { normalizeVariantImageUrl } from "@/utils/variantImage";
+import {
+  makePublicCartLineId,
+  type PublicCartItem,
+  upsertPublicCartItem,
+} from "@/lib/publicCart";
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   LKR: "Rs.",
@@ -31,22 +38,18 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 };
 
 const FALLBACK_GRADIENT = "linear-gradient(145deg, #1D3557 0%, #2A9D8F 54%, #E9C46A 100%)";
-const PUBLIC_CART_KEY = "madlaxue_public_cart";
 
-type PublicCartItem = {
-  variantId: string;
-  sku: string;
-  productName: string;
-  categoryName?: string;
-  colorName?: string;
-  size?: string;
-  unitPrice: number;
-  imageUrl: string | null;
-  qty: number;
+const formatBatchLabel = (batch: Pick<PublicBatch, "batchId" | "createdAt">) => {
+  const date = new Date(batch.createdAt);
+  const dateLabel = Number.isNaN(date.getTime())
+    ? "Unknown date"
+    : date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return `${dateLabel} · #${batch.batchId.slice(-6).toUpperCase()}`;
 };
 
 export default function ProductViewPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -56,6 +59,7 @@ export default function ProductViewPage() {
   const textMuted = isDark ? alpha("#D8D4CC", 0.72) : alpha("#2C3A4E", 0.68);
 
   const [variant, setVariant] = useState<PublicVariant | null>(null);
+  const [batches, setBatches] = useState<PublicBatch[]>([]);
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -63,6 +67,7 @@ export default function ProductViewPage() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
+  const [selectedQty, setSelectedQty] = useState(1);
 
   const images = useMemo(
     () =>
@@ -102,12 +107,19 @@ export default function ProductViewPage() {
     Promise.allSettled([
       publicApi.getVariantById(id),
       publicApi.getSettings(),
+      publicApi.getBatches({ variant: id, inStock: "true", limit: "100" }),
     ])
-      .then(([variantResult, settingsResult]) => {
+      .then(([variantResult, settingsResult, batchesResult]) => {
         if (cancelled) return;
 
         if (settingsResult.status === "fulfilled") {
           setSettings(settingsResult.value.data);
+        }
+
+        if (batchesResult.status === "fulfilled") {
+          setBatches(batchesResult.value.data ?? []);
+        } else {
+          setBatches([]);
         }
 
         if (variantResult.status === "fulfilled") {
@@ -133,6 +145,16 @@ export default function ProductViewPage() {
     };
   }, [id]);
 
+  const selectedBatch = useMemo(() => {
+    if (!batches.length) return null;
+    const requestedBatch = searchParams.get("batch");
+    if (requestedBatch) {
+      const matched = batches.find((batch) => batch.batchId === requestedBatch || batch._id === requestedBatch);
+      if (matched) return matched;
+    }
+    return batches[0];
+  }, [batches, searchParams]);
+
   useEffect(() => {
     if (!images.length) {
       setActiveIndex(0);
@@ -141,6 +163,11 @@ export default function ProductViewPage() {
     const primaryIndex = images.findIndex((img) => img.isPrimary);
     setActiveIndex(primaryIndex >= 0 ? primaryIndex : 0);
   }, [images]);
+
+  useEffect(() => {
+    const maxQty = Math.max(selectedBatch?.qtyRemaining ?? 1, 1);
+    setSelectedQty((prev) => Math.min(Math.max(prev, 1), maxQty));
+  }, [selectedBatch]);
 
   if (loading) {
     return (
@@ -193,51 +220,49 @@ export default function ProductViewPage() {
     );
   }
 
+  const selectedBatchQty = selectedBatch?.qtyRemaining ?? 0;
   const status: "In Stock" | "Low Stock" | "Out of Stock" =
-    variant.stockQty === 0 ? "Out of Stock" : variant.stockQty <= 5 ? "Low Stock" : "In Stock";
+    selectedBatchQty === 0 ? "Out of Stock" : selectedBatchQty <= 5 ? "Low Stock" : "In Stock";
   const activeImage = images[activeIndex]?.url ?? null;
-  const isOutOfStock = variant.stockQty === 0;
+  const isOutOfStock = !selectedBatch || selectedBatchQty <= 0;
 
-  const upsertCartItem = () => {
-    if (typeof window === "undefined") return;
+  const upsertCartItem = (qtyToAdd: number) => {
+    if (!selectedBatch) return;
+
+    const maxQtyAtSelection = Math.max(selectedBatch.qtyRemaining, 1);
+    const lineId = makePublicCartLineId(variant._id, selectedBatch.batchId);
 
     const nextItem: PublicCartItem = {
+      lineId,
       variantId: variant._id,
+      batchId: selectedBatch.batchId,
+      batchLabel: formatBatchLabel(selectedBatch),
       sku: variant.sku,
       productName: variant.productType?.name ?? "Product",
       categoryName: variant.category?.name,
       colorName: variant.color?.name,
       size: variant.size,
-      unitPrice: variant.sellPrice,
+      unitPrice: selectedBatch.sellPrice,
       imageUrl: activeImage,
-      qty: 1,
+      maxQtyAtSelection,
+      qty: Math.min(Math.max(qtyToAdd, 1), maxQtyAtSelection),
     };
 
-    const existingRaw = localStorage.getItem(PUBLIC_CART_KEY);
-    const existing = existingRaw ? (JSON.parse(existingRaw) as PublicCartItem[]) : [];
-    const foundIndex = existing.findIndex((item) => item.variantId === variant._id);
-
-    if (foundIndex >= 0) {
-      const currentQty = existing[foundIndex]?.qty ?? 0;
-      existing[foundIndex] = {
-        ...existing[foundIndex],
-        ...nextItem,
-        qty: Math.min(currentQty + 1, Math.max(variant.stockQty, 1)),
-      };
-    } else {
-      existing.push(nextItem);
-    }
-
-    localStorage.setItem(PUBLIC_CART_KEY, JSON.stringify(existing));
+    upsertPublicCartItem(nextItem, qtyToAdd);
   };
 
   const handleAddToCart = () => {
-    upsertCartItem();
-    setSnack("Added to cart");
+    if (!selectedBatch) {
+      setSnack("No stock available for this product");
+      return;
+    }
+
+    const qtyToAdd = Math.min(Math.max(selectedQty, 1), Math.max(selectedBatch.qtyRemaining, 1));
+    upsertCartItem(qtyToAdd);
+    setSnack(`Added ${qtyToAdd} item${qtyToAdd > 1 ? "s" : ""} from ${formatBatchLabel(selectedBatch)} to cart`);
   };
 
-  const handleBuyNow = () => {
-    upsertCartItem();
+  const handleViewCart = () => {
     router.push("/shop/cart");
   };
 
@@ -493,10 +518,88 @@ export default function ProductViewPage() {
           </Box>
 
           <Typography sx={{ mt: 2.2, color: accent, fontSize: "1.55rem", fontWeight: 800 }}>
-            {formatPrice(variant.sellPrice)}
+            {selectedBatch ? formatPrice(selectedBatch.sellPrice) : "--"}
           </Typography>
 
-          <Box sx={{ display: "flex", gap: 1, mt: 2, flexWrap: "wrap" }}>
+          <Box
+            sx={{
+              mt: 2,
+              p: 1.4,
+              borderRadius: "10px",
+              border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.08)}`,
+              bgcolor: isDark ? alpha("#0A121E", 0.55) : alpha("#F7F6F2", 0.85),
+            }}
+          >
+            <Typography sx={{ fontSize: "0.74rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: textMuted, mb: 1 }}>
+              Stock
+            </Typography>
+            {batches.length === 0 ? (
+              <Alert severity="warning" sx={{ py: 0.4 }}>
+                No stock available for this product.
+              </Alert>
+            ) : (
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 1,
+                  alignItems: "center",
+                  borderRadius: "8px",
+                  py: 0.9,
+                  px: 1.2,
+                  border: `1px solid ${alpha(accent, 0.35)}`,
+                }}
+              >
+                <Box sx={{ textAlign: "left" }}>
+                  <Typography sx={{ fontSize: "0.78rem", fontWeight: 700 }}>
+                    {selectedBatch ? formatBatchLabel(selectedBatch) : "--"}
+                  </Typography>
+                  <Typography sx={{ fontSize: "0.72rem", opacity: 0.86 }}>
+                    {selectedBatch ? `${selectedBatch.qtyRemaining} available` : "Out of stock"}
+                  </Typography>
+                </Box>
+                <Typography sx={{ fontWeight: 800, fontSize: "0.9rem", color: textPrimary }}>
+                  {selectedBatch ? formatPrice(selectedBatch.sellPrice) : "--"}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+
+          <Box sx={{ display: "flex", gap: 1, mt: 2, flexWrap: "wrap", alignItems: "stretch" }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                borderRadius: "8px",
+                border: `1px solid ${isDark ? alpha("#FFFFFF", 0.16) : alpha("#0F1A2A", 0.16)}`,
+                overflow: "hidden",
+                minWidth: 128,
+              }}
+            >
+              <IconButton
+                aria-label="Decrease quantity"
+                onClick={() => setSelectedQty((prev) => Math.max(prev - 1, 1))}
+                disabled={isOutOfStock || selectedQty <= 1}
+                sx={{ borderRadius: 0, width: 40, height: 40 }}
+              >
+                <RemoveRoundedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+              <Box sx={{ minWidth: 48, textAlign: "center" }}>
+                <Typography sx={{ fontWeight: 700, color: textPrimary, fontSize: "0.92rem" }}>
+                  {selectedQty}
+                </Typography>
+              </Box>
+              <IconButton
+                aria-label="Increase quantity"
+                onClick={() =>
+                  setSelectedQty((prev) => Math.min(prev + 1, Math.max(selectedBatchQty, 1)))
+                }
+                disabled={isOutOfStock || selectedQty >= Math.max(selectedBatchQty, 1)}
+                sx={{ borderRadius: 0, width: 40, height: 40 }}
+              >
+                <AddRoundedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Box>
             <Button
               variant="contained"
               onClick={handleAddToCart}
@@ -520,8 +623,7 @@ export default function ProductViewPage() {
             </Button>
             <Button
               variant="outlined"
-              onClick={handleBuyNow}
-              disabled={isOutOfStock}
+              onClick={handleViewCart}
               sx={{
                 textTransform: "none",
                 fontWeight: 700,
@@ -536,9 +638,14 @@ export default function ProductViewPage() {
                 },
               }}
             >
-              Buy Now
+              View Cart
             </Button>
           </Box>
+          {!isOutOfStock && (
+            <Typography sx={{ mt: 0.7, color: textMuted, fontSize: "0.76rem" }}>
+              Selected quantity: {selectedQty} (max {selectedBatchQty} in this stock)
+            </Typography>
+          )}
 
           <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.08)}` }}>
             <Typography sx={{ color: textMuted, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>
@@ -552,7 +659,9 @@ export default function ProductViewPage() {
               Availability
             </Typography>
             <Typography sx={{ color: textPrimary, fontSize: "0.9rem", mt: 0.4, fontWeight: 600 }}>
-              {variant.stockQty > 0 ? `${variant.stockQty} in stock` : "Currently out of stock"}
+              {selectedBatch
+                ? `${selectedBatch.qtyRemaining} in this stock`
+                : "Currently out of stock"}
             </Typography>
           </Box>
         </Box>

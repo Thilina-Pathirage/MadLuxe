@@ -15,6 +15,7 @@ export interface GeneralSettings {
   timezone: string;
   defaultLowStockThreshold: number;
   defaultDeliveryFee: number;
+  sellerWhatsappPhone: string;
 }
 
 export const GENERAL_SETTINGS_DEFAULTS: GeneralSettings = {
@@ -22,6 +23,7 @@ export const GENERAL_SETTINGS_DEFAULTS: GeneralSettings = {
   timezone: "Asia/Colombo",
   defaultLowStockThreshold: 5,
   defaultDeliveryFee: 300,
+  sellerWhatsappPhone: "",
 };
 
 export const CURRENCY_OPTIONS: Array<{ code: CurrencyCode; label: string; symbol: string }> = [

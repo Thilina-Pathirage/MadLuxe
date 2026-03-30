@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Box,
@@ -11,21 +11,16 @@ import {
   Typography,
 } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-
-const PUBLIC_CART_KEY = "madlaxue_public_cart";
-
-type PublicCartItem = {
-  variantId: string;
-  sku: string;
-  productName: string;
-  categoryName?: string;
-  colorName?: string;
-  size?: string;
-  unitPrice: number;
-  imageUrl: string | null;
-  qty: number;
-};
+import { publicApi, type PublicSettings } from "@/lib/api";
+import {
+  getPublicCartSubtotal,
+  removePublicCartItem,
+  setPublicCartItemQty,
+  usePublicCartItems,
+} from "@/lib/publicCart";
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   LKR: "Rs.",
@@ -41,36 +36,33 @@ export default function ShopCartPage() {
   const textPrimary = isDark ? "#F0EDE8" : "#0F1A2A";
   const textMuted = isDark ? alpha("#D8D4CC", 0.72) : alpha("#2C3A4E", 0.68);
 
-  const [items, setItems] = useState<PublicCartItem[]>([]);
+  const items = usePublicCartItems();
+  const [settings, setSettings] = useState<PublicSettings | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(PUBLIC_CART_KEY);
-    if (!stored) return;
-    try {
-      setItems(JSON.parse(stored) as PublicCartItem[]);
-    } catch {
-      setItems([]);
-    }
+    publicApi.getSettings().then((res) => setSettings(res.data)).catch(() => {});
   }, []);
 
-  const formatPrice = (value: number) =>
-    `${CURRENCY_SYMBOLS.LKR} ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  const total = useMemo(
-    () => items.reduce((sum, item) => sum + item.unitPrice * item.qty, 0),
-    [items],
+  const formatPrice = useCallback(
+    (value: number) => {
+      const symbol = CURRENCY_SYMBOLS[settings?.currencyCode ?? "LKR"] ?? "Rs.";
+      return `${symbol} ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    },
+    [settings],
   );
 
-  const persist = (next: PublicCartItem[]) => {
-    setItems(next);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(PUBLIC_CART_KEY, JSON.stringify(next));
+  const total = useMemo(() => getPublicCartSubtotal(items), [items]);
+
+  const decreaseQty = (lineId: string, currentQty: number) => {
+    if (currentQty <= 1) {
+      removePublicCartItem(lineId);
+      return;
     }
+    setPublicCartItemQty(lineId, currentQty - 1);
   };
 
-  const removeItem = (variantId: string) => {
-    persist(items.filter((item) => item.variantId !== variantId));
+  const increaseQty = (lineId: string, currentQty: number, maxQtyAtSelection: number) => {
+    setPublicCartItemQty(lineId, Math.min(currentQty + 1, maxQtyAtSelection));
   };
 
   if (!items.length) {
@@ -82,7 +74,12 @@ export default function ShopCartPage() {
         <Typography sx={{ mt: 1, color: textMuted }}>
           Add products from the shop to continue.
         </Typography>
-        <Button component={Link} href="/shop" variant="contained" sx={{ mt: 2.2, textTransform: "none", fontWeight: 700, bgcolor: accent, color: "#0F1A2A", "&:hover": { bgcolor: "#D4B060" } }}>
+        <Button
+          component={Link}
+          href="/shop"
+          variant="contained"
+          sx={{ mt: 2.2, textTransform: "none", fontWeight: 700, bgcolor: accent, color: "#0F1A2A", "&:hover": { bgcolor: "#D4B060" } }}
+        >
           Continue Shopping
         </Button>
       </Container>
@@ -104,14 +101,24 @@ export default function ShopCartPage() {
         }}
       >
         {items.map((item, index) => (
-          <Box key={item.variantId}>
-            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "72px 1fr auto", md: "84px 1fr auto" }, gap: 1.4, p: 1.6, alignItems: "center" }}>
+          <Box key={item.lineId}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "72px 1fr auto", md: "84px 1fr auto" },
+                gap: 1.4,
+                p: 1.6,
+                alignItems: "center",
+              }}
+            >
               <Box
                 sx={{
                   width: { xs: 72, md: 84 },
                   height: { xs: 72, md: 84 },
                   borderRadius: "10px",
-                  backgroundImage: item.imageUrl ? `url(${item.imageUrl})` : "linear-gradient(145deg, #1D3557 0%, #2A9D8F 54%, #E9C46A 100%)",
+                  backgroundImage: item.imageUrl
+                    ? `url(${item.imageUrl})`
+                    : "linear-gradient(145deg, #1D3557 0%, #2A9D8F 54%, #E9C46A 100%)",
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                 }}
@@ -125,16 +132,43 @@ export default function ShopCartPage() {
                 <Typography sx={{ mt: 0.4, color: textMuted, fontSize: "0.76rem", fontFamily: "monospace" }}>
                   {item.sku}
                 </Typography>
-                <Typography sx={{ mt: 0.7, color: accent, fontWeight: 700 }}>
-                  {formatPrice(item.unitPrice)} x {item.qty}
+                <Typography sx={{ mt: 0.4, color: textMuted, fontSize: "0.74rem" }}>
+                  Stock {item.batchLabel}
                 </Typography>
+
+                <Box sx={{ mt: 0.8, display: "inline-flex", alignItems: "center", border: `1px solid ${alpha(accent, 0.45)}`, borderRadius: "8px", overflow: "hidden" }}>
+                  <IconButton
+                    aria-label="Decrease quantity"
+                    onClick={() => decreaseQty(item.lineId, item.qty)}
+                    sx={{ borderRadius: 0, width: 34, height: 34 }}
+                  >
+                    <RemoveRoundedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                  <Typography sx={{ minWidth: 34, textAlign: "center", fontWeight: 700, color: textPrimary, fontSize: "0.85rem" }}>
+                    {item.qty}
+                  </Typography>
+                  <IconButton
+                    aria-label="Increase quantity"
+                    onClick={() => increaseQty(item.lineId, item.qty, item.maxQtyAtSelection)}
+                    disabled={item.qty >= item.maxQtyAtSelection}
+                    sx={{ borderRadius: 0, width: 34, height: 34 }}
+                  >
+                    <AddRoundedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Box>
               </Box>
 
               <Box sx={{ textAlign: "right" }}>
                 <Typography sx={{ color: textPrimary, fontWeight: 800, fontSize: "0.95rem" }}>
                   {formatPrice(item.unitPrice * item.qty)}
                 </Typography>
-                <IconButton onClick={() => removeItem(item.variantId)} sx={{ mt: 0.6, color: isDark ? alpha("#FFFFFF", 0.7) : alpha("#0F1A2A", 0.65) }}>
+                <Typography sx={{ mt: 0.4, color: accent, fontWeight: 700, fontSize: "0.8rem" }}>
+                  {formatPrice(item.unitPrice)} each
+                </Typography>
+                <IconButton
+                  onClick={() => removePublicCartItem(item.lineId)}
+                  sx={{ mt: 0.6, color: isDark ? alpha("#FFFFFF", 0.7) : alpha("#0F1A2A", 0.65) }}
+                >
                   <DeleteOutlineRoundedIcon fontSize="small" />
                 </IconButton>
               </Box>
@@ -154,6 +188,8 @@ export default function ShopCartPage() {
       </Box>
 
       <Button
+        component={Link}
+        href="/shop/checkout"
         fullWidth
         variant="contained"
         sx={{
@@ -166,7 +202,7 @@ export default function ShopCartPage() {
           "&:hover": { bgcolor: "#D4B060" },
         }}
       >
-        Proceed to Checkout (Coming Soon)
+        Proceed to Checkout
       </Button>
     </Container>
   );

@@ -6,6 +6,7 @@ const GENERAL_SETTINGS_DEFAULTS = {
   timezone: 'Asia/Colombo',
   defaultLowStockThreshold: 5,
   defaultDeliveryFee: 300,
+  sellerWhatsappPhone: '',
 };
 
 const sanitizeGeneralSettings = (settings = {}) => ({
@@ -19,6 +20,7 @@ const sanitizeGeneralSettings = (settings = {}) => ({
     Number.isFinite(Number(settings.defaultDeliveryFee))
       ? Number(settings.defaultDeliveryFee)
       : GENERAL_SETTINGS_DEFAULTS.defaultDeliveryFee,
+  sellerWhatsappPhone: String(settings.sellerWhatsappPhone || GENERAL_SETTINGS_DEFAULTS.sellerWhatsappPhone).trim(),
 });
 
 const getOrCreateGeneralSettings = async () => {

@@ -17,6 +17,7 @@ const updateGeneralSettings = async (req, res, next) => {
     settings.timezone = req.body.timezone;
     settings.defaultLowStockThreshold = Number(req.body.defaultLowStockThreshold);
     settings.defaultDeliveryFee = Number(req.body.defaultDeliveryFee);
+    settings.sellerWhatsappPhone = String(req.body.sellerWhatsappPhone || '').trim();
     await settings.save();
 
     return success(res, { data: settings }, 'General settings updated');

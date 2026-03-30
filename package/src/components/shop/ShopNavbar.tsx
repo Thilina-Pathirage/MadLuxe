@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   AppBar,
+  Badge,
   Box,
   IconButton,
   Toolbar,
@@ -12,7 +13,9 @@ import {
 import { alpha, useTheme as useMuiTheme } from "@mui/material/styles";
 import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
+import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
 import { useTheme as useAppTheme } from "@/utils/ThemeContext";
+import { usePublicCartCount } from "@/lib/publicCart";
 
 interface ShopNavbarProps {
   activeLink?: "shop" | "categories";
@@ -22,6 +25,7 @@ const ShopNavbar = ({ activeLink }: ShopNavbarProps) => {
   const theme = useMuiTheme();
   const isDark = theme.palette.mode === "dark";
   const { toggleTheme, mode: themeMode } = useAppTheme();
+  const cartCount = usePublicCartCount();
 
   const accent = "#C9A84C";
   const textPrimary = isDark ? "#F0EDE8" : "#0F1A2A";
@@ -116,7 +120,41 @@ const ShopNavbar = ({ activeLink }: ShopNavbarProps) => {
           >
             Categories
           </Box>
-         
+
+          <Tooltip title="Cart" arrow>
+            <IconButton
+              component={Link}
+              href="/shop/cart"
+              aria-label="Open cart"
+              size="small"
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: "8px",
+                border: `1px solid ${divider}`,
+                color: textMuted,
+                "&:hover": { borderColor: accent, color: accent },
+              }}
+            >
+              <Badge
+                badgeContent={cartCount}
+                color="primary"
+                sx={{
+                  "& .MuiBadge-badge": {
+                    bgcolor: accent,
+                    color: "#0F1A2A",
+                    fontWeight: 700,
+                    minWidth: 16,
+                    height: 16,
+                    fontSize: "0.62rem",
+                  },
+                }}
+              >
+                <ShoppingCartOutlinedIcon sx={{ fontSize: 17 }} />
+              </Badge>
+            </IconButton>
+          </Tooltip>
+
           <Tooltip
             title={themeMode === "dark" ? "Light mode" : "Dark mode"}
             arrow

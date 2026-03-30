@@ -7,7 +7,7 @@ import {
   Select, MenuItem, Collapse, Snackbar, Alert, Pagination, Tooltip,
   CircularProgress,
 } from "@mui/material";
-import { IconChevronDown, IconChevronUp, IconX, IconDownload, IconFileInvoice, IconTrash } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconX, IconDownload, IconFileInvoice, IconTrash, IconCheck } from "@tabler/icons-react";
 import Link from "next/link";
 import PageContainer from "@/app/portal/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
@@ -83,6 +83,16 @@ export default function AllOrdersPage() {
     setSnackMsg(`Order ${deleteTarget.orderRef} deleted.`);
     setDeleteTarget(null);
     fetchOrders();
+  };
+
+  const handleComplete = async (order: Order) => {
+    try {
+      await api.completeOrder(order._id);
+      setSnackMsg(`Order ${order.orderRef} marked as completed.`);
+      fetchOrders();
+    } catch {
+      setSnackMsg(`Failed to complete order ${order.orderRef}.`);
+    }
   };
 
   return (
@@ -219,6 +229,13 @@ export default function AllOrdersPage() {
                           <IconFileInvoice size={15} />
                         </IconButton>
                       </Tooltip>
+                      {o.status === "Pending" && (
+                        <Tooltip title="Mark as completed">
+                          <IconButton size="small" sx={{ color: "success.main" }} onClick={() => handleComplete(o)}>
+                            <IconCheck size={15} stroke={2} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {o.status === "Pending" && (
                         <Tooltip title="Cancel order">
                           <IconButton size="small" sx={{ color: "error.main" }} onClick={() => setCancelTarget(o)}>

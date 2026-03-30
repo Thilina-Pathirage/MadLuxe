@@ -23,6 +23,7 @@ router.post(
   ctrl.create
 );
 router.patch('/:id/cancel', ctrl.cancel);
+router.patch('/:id/complete', ctrl.complete);
 router.delete('/:id', ctrl.deleteOrder);
 
 module.exports = router;

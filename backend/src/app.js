@@ -116,11 +116,13 @@ app.use('/api/images/file', require('./routes/publicImages'));
 // Public data routes (no auth required)
 app.get('/api/public/categories', require('./controllers/categoryController').getAll);
 app.get('/api/public/banners', require('./controllers/websiteSettingsController').getPublicBanners);
+app.get('/api/public/batches', require('./controllers/publicShopController').getPublicBatches);
 app.get('/api/public/variants', require('./controllers/publicShopController').getPublicVariants);
 app.get('/api/public/variants/:id', require('./controllers/publicShopController').getPublicVariantById);
 app.get('/api/public/product-types', require('./controllers/publicShopController').getPublicProductTypes);
 app.get('/api/public/settings', require('./controllers/publicShopController').getPublicSettings);
 app.get('/api/public/top-selling', require('./controllers/publicShopController').getPublicTopSelling);
+app.post('/api/public/orders', require('./controllers/publicOrderController').createPublicOrder);
 
 // Apply JWT protection to all subsequent /api/* routes
 app.use('/api', require('./middleware/protect'));

@@ -23,6 +23,11 @@ const generalSettingsSchema = new mongoose.Schema(
       min: 0,
       default: 300,
     },
+    sellerWhatsappPhone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
   },
   { timestamps: true }
 );

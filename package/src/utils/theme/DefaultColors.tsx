@@ -15,6 +15,7 @@ const baselightTheme = createTheme({
       main: "#1E3A5F",
       light: "#e8eef5",
       dark: "#022448",
+      contrastText: "#ffffff",
     },
     secondary: {
       main: "#2E86AB",
@@ -167,6 +168,9 @@ const baselightTheme = createTheme({
           "&.Mui-disabled": {
             color: "#c4c6cf",
           },
+        },
+        contained: {
+          color: "#ffffff !important",
         },
         containedPrimary: {
           background: "linear-gradient(180deg, #1E3A5F 0%, #022448 100%)",
