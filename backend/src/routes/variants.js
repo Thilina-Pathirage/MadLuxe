@@ -19,6 +19,7 @@ router.post(
     body('colorId').notEmpty().isMongoId().withMessage('Valid color ID required'),
     body('costPrice').notEmpty().isFloat({ min: 0 }).withMessage('Cost price must be >= 0'),
     body('sellPrice').notEmpty().isFloat({ min: 0 }).withMessage('Sell price must be >= 0'),
+    body('weightGrams').notEmpty().isFloat({ min: 1 }).withMessage('Weight (grams) must be >= 1'),
     body('stockQty').optional({ values: 'falsy' }).isFloat({ min: 0 }).withMessage('Stock quantity must be >= 0'),
     body('lowStockThreshold').optional({ values: 'falsy' }).isFloat({ min: 0 }).withMessage('Low stock threshold must be >= 0'),
   ],

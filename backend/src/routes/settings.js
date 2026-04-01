@@ -4,6 +4,7 @@ const generalCtrl = require('../controllers/generalSettingsController');
 const websiteCtrl = require('../controllers/websiteSettingsController');
 const validate = require('../middleware/validate');
 const upload = require('../middleware/upload');
+const { SRI_LANKA_PROVINCES } = require('../utils/sriLankaGeo');
 
 const router = express.Router();
 
@@ -32,6 +33,30 @@ router.put(
     body('defaultDeliveryFee')
       .isFloat({ min: 0 })
       .withMessage('Default delivery fee must be >= 0'),
+    body('deliveryPricing')
+      .optional()
+      .isObject()
+      .withMessage('deliveryPricing must be an object'),
+    body('deliveryPricing.baseWeightGrams')
+      .optional()
+      .isFloat({ min: 1 })
+      .withMessage('Base weight must be >= 1 gram'),
+    body('deliveryPricing.additionalPerKgFee')
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage('Additional per kg fee must be >= 0'),
+    body('deliveryPricing.provinceBaseFees')
+      .optional()
+      .custom((value) => {
+        if (value == null || typeof value !== 'object') return false;
+        for (const province of SRI_LANKA_PROVINCES) {
+          if (value[province] == null) continue;
+          const amount = Number(value[province]);
+          if (!Number.isFinite(amount) || amount < 0) return false;
+        }
+        return true;
+      })
+      .withMessage('Province base fees must be a non-negative number map'),
     body('sellerWhatsappPhone')
       .optional({ values: 'falsy' })
       .trim()

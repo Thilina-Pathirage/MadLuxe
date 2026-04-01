@@ -15,6 +15,7 @@ export type PublicCartItem = {
   categoryName?: string;
   colorName?: string;
   size?: string;
+  unitWeightGrams?: number;
   unitPrice: number;
   imageUrl: string | null;
   maxQtyAtSelection: number;
@@ -43,6 +44,7 @@ export const normalizePublicCartItems = (items: unknown): PublicCartItem[] => {
           categoryName: entry.categoryName,
           colorName: entry.colorName,
           size: entry.size,
+          unitWeightGrams: Number(entry.unitWeightGrams ?? 1000),
           unitPrice: Number(entry.unitPrice ?? 0),
           imageUrl: entry.imageUrl ?? null,
           maxQtyAtSelection: Math.max(Number(entry.maxQtyAtSelection ?? entry.maxQty ?? 1), 1),
@@ -61,6 +63,7 @@ export const normalizePublicCartItems = (items: unknown): PublicCartItem[] => {
         categoryName: entry.categoryName,
         colorName: entry.colorName,
         size: entry.size,
+        unitWeightGrams: Number(entry.unitWeightGrams ?? 1000),
         unitPrice: Number(entry.unitPrice ?? 0),
         imageUrl: entry.imageUrl ?? null,
         maxQtyAtSelection: Number.MAX_SAFE_INTEGER,

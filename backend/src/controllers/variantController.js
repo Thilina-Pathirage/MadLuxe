@@ -84,6 +84,7 @@ const create = async (req, res, next) => {
       productTypeId,
       colorId,
       size,
+      weightGrams,
       costPrice,
       sellPrice,
       lowStockThreshold,
@@ -92,6 +93,7 @@ const create = async (req, res, next) => {
 
     const parsedCostPrice = Number(costPrice);
     const parsedSellPrice = Number(sellPrice);
+    const parsedWeightGrams = Math.max(1, Math.round(Number(weightGrams || 1000)));
     const parsedLowStockThreshold =
       lowStockThreshold !== undefined && lowStockThreshold !== ''
         ? Number(lowStockThreshold)
@@ -115,6 +117,7 @@ const create = async (req, res, next) => {
       productType: productTypeId,
       color: colorId,
       size: size || 'N/A',
+      weightGrams: parsedWeightGrams,
       costPrice: parsedCostPrice,
       sellPrice: parsedSellPrice,
       lowStockThreshold: parsedLowStockThreshold,
@@ -159,12 +162,18 @@ const create = async (req, res, next) => {
 const update = async (req, res, next) => {
   try {
     // Do NOT allow changing category, productType, color — they define variant identity
-    const { costPrice, sellPrice, lowStockThreshold, size, isActive } = req.body;
+    const { costPrice, sellPrice, lowStockThreshold, size, isActive, weightGrams } = req.body;
     const updates = {};
     if (costPrice !== undefined) updates.costPrice = costPrice;
     if (sellPrice !== undefined) updates.sellPrice = sellPrice;
     if (lowStockThreshold !== undefined) updates.lowStockThreshold = lowStockThreshold;
     if (size !== undefined) updates.size = size;
+    if (weightGrams !== undefined) {
+      const parsedWeightGrams = Number(weightGrams);
+      if (Number.isFinite(parsedWeightGrams)) {
+        updates.weightGrams = Math.max(1, Math.round(parsedWeightGrams));
+      }
+    }
     if (isActive !== undefined) updates.isActive = isActive;
 
     const variant = await Variant.findByIdAndUpdate(req.params.id, updates, {

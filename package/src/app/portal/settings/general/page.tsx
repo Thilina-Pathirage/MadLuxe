@@ -23,6 +23,7 @@ import {
   TIMEZONE_OPTIONS,
   type GeneralSettings,
 } from "@/lib/generalSettings";
+import { SRI_LANKA_PROVINCES } from "@/lib/sriLankaGeo";
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -54,6 +55,7 @@ export default function GeneralSettingsPage() {
       form.timezone !== settings.timezone ||
       form.defaultLowStockThreshold !== settings.defaultLowStockThreshold ||
       form.defaultDeliveryFee !== settings.defaultDeliveryFee ||
+      JSON.stringify(form.deliveryPricing) !== JSON.stringify(settings.deliveryPricing) ||
       form.sellerWhatsappPhone !== settings.sellerWhatsappPhone,
     [form, settings]
   );
@@ -66,6 +68,11 @@ export default function GeneralSettingsPage() {
         timezone: form.timezone,
         defaultLowStockThreshold: Number(form.defaultLowStockThreshold),
         defaultDeliveryFee: Number(form.defaultDeliveryFee),
+        deliveryPricing: {
+          provinceBaseFees: { ...form.deliveryPricing.provinceBaseFees },
+          baseWeightGrams: Number(form.deliveryPricing.baseWeightGrams),
+          additionalPerKgFee: Number(form.deliveryPricing.additionalPerKgFee),
+        },
         sellerWhatsappPhone: form.sellerWhatsappPhone.trim(),
       });
       setSnackSeverity("success");
@@ -82,7 +89,7 @@ export default function GeneralSettingsPage() {
     <PageContainer title="General Settings" description="Business-wide operational defaults">
       <PageHeader
         title="General Settings"
-        subtitle="Manage the shared currency, timezone, low-stock threshold, and delivery defaults."
+        subtitle="Manage the shared currency, timezone, low-stock threshold, and delivery configurations."
       />
 
       <Alert severity="info" sx={{ mb: 2.5 }}>
@@ -154,24 +161,6 @@ export default function GeneralSettingsPage() {
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
-              label="Default Delivery Fee"
-              type="number"
-              value={form.defaultDeliveryFee}
-              size="small"
-              fullWidth
-              disabled={loading}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  defaultDeliveryFee: Math.max(0, Number(event.target.value || 0)),
-                }))
-              }
-              slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-              helperText="Prefills new delivery orders and remains editable per order."
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
               label="Seller WhatsApp Phone"
               value={form.sellerWhatsappPhone}
               size="small"
@@ -186,6 +175,99 @@ export default function GeneralSettingsPage() {
               helperText='Used by public Bank Transfer checkout popup (example: +94770000000).'
             />
           </Grid>
+        </Grid>
+      </SectionCard>
+
+      <SectionCard title="Delivery Configs">
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Delivery formula: Province Base Fee + (each additional started 1000g above base threshold × Additional Fee).
+        </Alert>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="Default Delivery Fee"
+              type="number"
+              value={form.defaultDeliveryFee}
+              size="small"
+              fullWidth
+              disabled={loading}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  defaultDeliveryFee: Math.max(0, Number(event.target.value || 0)),
+                }))
+              }
+              slotProps={{ htmlInput: { min: 0, step: 1 } }}
+              helperText="Used as the default manual delivery fee when creating new orders."
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="Base Weight Threshold (g)"
+              type="number"
+              value={form.deliveryPricing.baseWeightGrams}
+              size="small"
+              fullWidth
+              disabled={loading}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  deliveryPricing: {
+                    ...prev.deliveryPricing,
+                    baseWeightGrams: Math.max(1, Number(event.target.value || 1)),
+                  },
+                }))
+              }
+              slotProps={{ htmlInput: { min: 1, step: 1 } }}
+              helperText="Base fee applies up to and including this weight."
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="Additional Fee Per Extra Started KG"
+              type="number"
+              value={form.deliveryPricing.additionalPerKgFee}
+              size="small"
+              fullWidth
+              disabled={loading}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  deliveryPricing: {
+                    ...prev.deliveryPricing,
+                    additionalPerKgFee: Math.max(0, Number(event.target.value || 0)),
+                  },
+                }))
+              }
+              slotProps={{ htmlInput: { min: 0, step: 1 } }}
+              helperText="Applied for each additional started 1000g above base threshold."
+            />
+          </Grid>
+          {SRI_LANKA_PROVINCES.map((province) => (
+            <Grid key={province} size={{ xs: 12, md: 4 }}>
+              <TextField
+                label={`${province} Base Fee`}
+                type="number"
+                value={form.deliveryPricing.provinceBaseFees[province]}
+                size="small"
+                fullWidth
+                disabled={loading}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    deliveryPricing: {
+                      ...prev.deliveryPricing,
+                      provinceBaseFees: {
+                        ...prev.deliveryPricing.provinceBaseFees,
+                        [province]: Math.max(0, Number(event.target.value || 0)),
+                      },
+                    },
+                  }))
+                }
+                slotProps={{ htmlInput: { min: 0, step: 1 } }}
+              />
+            </Grid>
+          ))}
         </Grid>
       </SectionCard>
 

@@ -1,4 +1,5 @@
 const GeneralSettings = require('../models/GeneralSettings');
+const { sanitizeDeliveryPricing } = require('../utils/deliveryPricing');
 
 const GENERAL_SETTINGS_KEY = 'general';
 const GENERAL_SETTINGS_DEFAULTS = {
@@ -6,6 +7,10 @@ const GENERAL_SETTINGS_DEFAULTS = {
   timezone: 'Asia/Colombo',
   defaultLowStockThreshold: 5,
   defaultDeliveryFee: 300,
+  deliveryPricing: sanitizeDeliveryPricing(
+    {},
+    { fallbackBaseFee: 300 }
+  ),
   sellerWhatsappPhone: '',
 };
 
@@ -20,6 +25,12 @@ const sanitizeGeneralSettings = (settings = {}) => ({
     Number.isFinite(Number(settings.defaultDeliveryFee))
       ? Number(settings.defaultDeliveryFee)
       : GENERAL_SETTINGS_DEFAULTS.defaultDeliveryFee,
+  deliveryPricing: sanitizeDeliveryPricing(settings.deliveryPricing, {
+    fallbackBaseFee:
+      Number.isFinite(Number(settings.defaultDeliveryFee))
+        ? Number(settings.defaultDeliveryFee)
+        : GENERAL_SETTINGS_DEFAULTS.defaultDeliveryFee,
+  }),
   sellerWhatsappPhone: String(settings.sellerWhatsappPhone || GENERAL_SETTINGS_DEFAULTS.sellerWhatsappPhone).trim(),
 });
 

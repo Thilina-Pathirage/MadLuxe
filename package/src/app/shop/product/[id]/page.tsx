@@ -242,6 +242,7 @@ export default function ProductViewPage() {
       categoryName: variant.category?.name,
       colorName: variant.color?.name,
       size: variant.size,
+      unitWeightGrams: Math.max(1, Math.round(Number(variant.weightGrams) || 1000)),
       unitPrice: selectedBatch.sellPrice,
       imageUrl: activeImage,
       maxQtyAtSelection,

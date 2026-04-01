@@ -122,6 +122,7 @@ app.get('/api/public/variants', require('./controllers/publicShopController').ge
 app.get('/api/public/variants/:id', require('./controllers/publicShopController').getPublicVariantById);
 app.get('/api/public/product-types', require('./controllers/publicShopController').getPublicProductTypes);
 app.get('/api/public/settings', require('./controllers/publicShopController').getPublicSettings);
+app.post('/api/public/delivery/quote', require('./controllers/publicShopController').quotePublicDelivery);
 app.get('/api/public/top-selling', require('./controllers/publicShopController').getPublicTopSelling);
 
 // Public order creation — optionally links to customer account

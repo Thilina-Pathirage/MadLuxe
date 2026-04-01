@@ -5,6 +5,8 @@ const orderItemSchema = new mongoose.Schema(
     variant: { type: mongoose.Schema.Types.ObjectId, ref: 'Variant', required: true },
     variantLabel: { type: String, required: true },
     qty: { type: Number, required: true, min: 1 },
+    unitWeightGrams: { type: Number, default: 1000, min: 0 },
+    lineWeightGrams: { type: Number, default: 1000, min: 0 },
     unitPrice: { type: Number, required: true },
     costPrice: { type: Number, default: 0 }, // snapshot at order time for finance P&L
     lineTotal: { type: Number, required: true }, // qty × unitPrice (gross)
@@ -52,6 +54,7 @@ const orderSchema = new mongoose.Schema(
     manualDiscountAmount: { type: Number, default: 0 },  // calculated amount
 
     total: { type: Number, required: true },
+    totalWeightGrams: { type: Number, default: 0, min: 0 },
     paymentMethod: {
       type: String,
       enum: ['COD', 'BankTransfer'],

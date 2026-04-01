@@ -14,7 +14,7 @@ const POPULATE_ITEMS = {
     { path: 'productType', select: 'name' },
     { path: 'color', select: 'name hexCode' },
   ],
-  select: 'sku size images',
+  select: 'sku size images weightGrams',
 };
 
 const getAll = async (req, res, next) => {
@@ -138,6 +138,8 @@ const create = async (req, res, next) => {
         variant: variant._id,
         variantLabel: label,
         qty: raw.qty,
+        unitWeightGrams: Math.max(1, Math.round(Number(variant.weightGrams) || 1000)),
+        lineWeightGrams: Math.max(1, Math.round(Number(variant.weightGrams) || 1000)) * raw.qty,
         unitPrice: variant.sellPrice,
         costPrice: variant.costPrice,
         lineTotal,
@@ -235,6 +237,7 @@ const create = async (req, res, next) => {
 
     // --- Steps 3 & 4: Subtotals ---
     const subtotal = round2(lineItems.reduce((s, l) => s + l.lineTotal, 0));
+    const totalWeightGrams = lineItems.reduce((s, l) => s + l.lineWeightGrams, 0);
     const itemDiscountAmount = round2(lineItems.reduce((s, l) => s + l.discountAmount, 0));
 
     // --- Step 5: Coupon ---
@@ -300,6 +303,7 @@ const create = async (req, res, next) => {
       manualDiscount,
       manualDiscountAmount: resolvedManualDiscountAmount,
       total,
+      totalWeightGrams,
       paymentMethod,
       deliveryFee,
       notes: notes || '',

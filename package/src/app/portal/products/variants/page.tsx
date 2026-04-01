@@ -43,7 +43,7 @@ function formatVariantLabel(v: any) {
 // ─── Edit Prices Dialog ────────────────────────────────────────────────────
 function EditPricesDialog({ variant, onSave, onClose }: {
   variant: any;
-  onSave: (id: string, costPrice: number, sellPrice: number, lowStockThreshold: number) => void;
+  onSave: (id: string, costPrice: number, sellPrice: number, lowStockThreshold: number, weightGrams: number) => void;
   onClose: () => void;
 }) {
   const { settings } = useGeneralSettings();
@@ -51,6 +51,7 @@ function EditPricesDialog({ variant, onSave, onClose }: {
   const [cost, setCost]     = useState(String(variant.costPrice));
   const [sell, setSell]     = useState(String(variant.sellPrice));
   const [thresh, setThresh] = useState(String(variant.lowStockThreshold));
+  const [weight, setWeight] = useState(String(variant.weightGrams ?? 1000));
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ fontWeight: 600 }}>Edit Variant Prices</DialogTitle>
@@ -68,12 +69,16 @@ function EditPricesDialog({ variant, onSave, onClose }: {
           sx={{ mb: 2 }} />
         <TextField label="Low Stock Threshold (units)" type="number" value={thresh} size="small" fullWidth
           onChange={(e) => setThresh(e.target.value)}
-          slotProps={{ htmlInput: { min: 0 } }} />
+          slotProps={{ htmlInput: { min: 0 } }}
+          sx={{ mb: 2 }} />
+        <TextField label="Weight (g)" type="number" value={weight} size="small" fullWidth
+          onChange={(e) => setWeight(e.target.value)}
+          slotProps={{ htmlInput: { min: 1, step: 1 } }} />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} variant="outlined" size="small">Cancel</Button>
         <Button
-          onClick={() => { onSave(variant._id, Number(cost), Number(sell), Number(thresh)); onClose(); }}
+          onClick={() => { onSave(variant._id, Number(cost), Number(sell), Number(thresh), Number(weight)); onClose(); }}
           variant="contained" size="small"
         >Save</Button>
       </DialogActions>
@@ -311,6 +316,7 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
   const [colorId, setColorId] = useState("");
   const [cost, setCost]       = useState("");
   const [sell, setSell]       = useState("");
+  const [weight, setWeight]   = useState("1000");
   const [initQty, setInitQty] = useState("");
   const [thresh, setThresh]   = useState(String(settings.defaultLowStockThreshold));
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
@@ -336,7 +342,7 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
 
   const selectedType = productTypes.find((t) => t._id === typeId);
   const sizeOptions  = selectedType?.hasSizes ? selectedType.sizes : ["N/A"];
-  const canSave      = catId && typeId && size && colorId && cost && sell;
+  const canSave      = catId && typeId && size && colorId && cost && sell && weight;
 
   useEffect(() => {
     if (!selectedType) return;
@@ -391,6 +397,7 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
       form.append("size", size);
       form.append("costPrice", String(Number(cost)));
       form.append("sellPrice", String(Number(sell)));
+      form.append("weightGrams", String(Math.max(1, Math.round(Number(weight) || 1000))));
       form.append("stockQty", String(Number(initQty) || 0));
       form.append("lowStockThreshold", String(Number(thresh) || settings.defaultLowStockThreshold));
       if (pendingImage) form.append("images", pendingImage.file);
@@ -444,6 +451,11 @@ function NewVariantDialog({ categories, colors, onClose, onSave }: {
             <TextField label="Sell Price" type="number" value={sell} size="small" fullWidth
               onChange={(e) => setSell(e.target.value)}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> } }} />
+          </Grid>
+          <Grid size={6}>
+            <TextField label="Weight (g)" type="number" value={weight} size="small" fullWidth
+              onChange={(e) => setWeight(e.target.value)}
+              slotProps={{ htmlInput: { min: 1, step: 1 } }} />
           </Grid>
           <Grid size={6}>
             <TextField label="Initial Stock Qty" type="number" value={initQty} size="small" fullWidth
@@ -593,9 +605,9 @@ export default function VariantsPage() {
 
   useEffect(() => { fetchVariants(); }, [fetchVariants]);
 
-  const handlePriceSave = async (id: string, costPrice: number, sellPrice: number, lowStockThreshold: number) => {
+  const handlePriceSave = async (id: string, costPrice: number, sellPrice: number, lowStockThreshold: number, weightGrams: number) => {
     try {
-      await api.updateVariant(id, { costPrice, sellPrice, lowStockThreshold } as any);
+      await api.updateVariant(id, { costPrice, sellPrice, lowStockThreshold, weightGrams } as any);
       setSnackMsg("Prices updated.");
       fetchVariants();
     } catch (err: any) {
@@ -682,6 +694,7 @@ export default function VariantsPage() {
                 <TableCell>Size</TableCell>
                 <TableCell>Color</TableCell>
                 <TableCell>SKU</TableCell>
+                <TableCell align="right">Weight</TableCell>
                 <TableCell align="right">Cost</TableCell>
                 <TableCell align="right">Sell</TableCell>
                 <TableCell align="center">Stock</TableCell>
@@ -691,7 +704,7 @@ export default function VariantsPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={10} align="center" sx={{ py: 6 }}><CircularProgress size={24} /></TableCell>
+                  <TableCell colSpan={11} align="center" sx={{ py: 6 }}><CircularProgress size={24} /></TableCell>
                 </TableRow>
               ) : variants.map((v) => {
                 const stockColor = v.status === "Out of Stock" ? "error.main" : v.status === "Low Stock" ? "warning.main" : "success.main";
@@ -718,6 +731,7 @@ export default function VariantsPage() {
                     <TableCell>
                       <Typography variant="caption" sx={{ fontFamily: "monospace", color: "text.secondary" }}>{v.sku}</Typography>
                     </TableCell>
+                    <TableCell align="right"><Typography variant="body2">{Number(v.weightGrams ?? 0).toLocaleString()} g</Typography></TableCell>
                     <TableCell align="right"><Typography variant="body2">{formatCurrency(v.costPrice)}</Typography></TableCell>
                     <TableCell align="right"><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(v.sellPrice)}</Typography></TableCell>
                     <TableCell align="center">
@@ -753,7 +767,7 @@ export default function VariantsPage() {
               })}
               {!loading && variants.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} align="center" sx={{ py: 6, color: "text.secondary" }}>
+                  <TableCell colSpan={11} align="center" sx={{ py: 6, color: "text.secondary" }}>
                     No variants match the current filters.
                   </TableCell>
                 </TableRow>

@@ -15,6 +15,21 @@ export interface GeneralSettings {
   timezone: string;
   defaultLowStockThreshold: number;
   defaultDeliveryFee: number;
+  deliveryPricing: {
+    provinceBaseFees: {
+      Western: number;
+      Central: number;
+      Southern: number;
+      Northern: number;
+      Eastern: number;
+      "North Western": number;
+      "North Central": number;
+      Uva: number;
+      Sabaragamuwa: number;
+    };
+    baseWeightGrams: number;
+    additionalPerKgFee: number;
+  };
   sellerWhatsappPhone: string;
 }
 
@@ -23,6 +38,21 @@ export const GENERAL_SETTINGS_DEFAULTS: GeneralSettings = {
   timezone: "Asia/Colombo",
   defaultLowStockThreshold: 5,
   defaultDeliveryFee: 300,
+  deliveryPricing: {
+    provinceBaseFees: {
+      Western: 350,
+      Central: 300,
+      Southern: 300,
+      Northern: 300,
+      Eastern: 300,
+      "North Western": 300,
+      "North Central": 300,
+      Uva: 300,
+      Sabaragamuwa: 300,
+    },
+    baseWeightGrams: 1000,
+    additionalPerKgFee: 100,
+  },
   sellerWhatsappPhone: "",
 };
 

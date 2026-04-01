@@ -82,6 +82,7 @@ export interface Variant {
   productType: PopulatedRef;
   color: ColorRef;
   size: string;
+  weightGrams: number;
   costPrice: number;
   sellPrice: number;
   stockQty: number;
@@ -115,6 +116,8 @@ export interface OrderItem {
   variant: Partial<Variant>;
   variantLabel: string;
   qty: number;
+  unitWeightGrams?: number;
+  lineWeightGrams?: number;
   unitPrice: number;
   costPrice: number;
   lineTotal: number;
@@ -144,6 +147,7 @@ export interface Order {
   manualDiscount: number;
   manualDiscountAmount: number;
   total: number;
+  totalWeightGrams?: number;
   paymentMethod: 'COD' | 'BankTransfer';
   deliveryFee: number;
   status: 'Pending' | 'Completed' | 'Cancelled' | 'Deleted';
@@ -208,6 +212,21 @@ export interface GeneralSettings {
   timezone: string;
   defaultLowStockThreshold: number;
   defaultDeliveryFee: number;
+  deliveryPricing: {
+    provinceBaseFees: {
+      Western: number;
+      Central: number;
+      Southern: number;
+      Northern: number;
+      Eastern: number;
+      'North Western': number;
+      'North Central': number;
+      Uva: number;
+      Sabaragamuwa: number;
+    };
+    baseWeightGrams: number;
+    additionalPerKgFee: number;
+  };
   sellerWhatsappPhone: string;
 }
 
@@ -273,6 +292,7 @@ export interface PublicVariant {
   productType: PopulatedRef;
   color: ColorRef;
   size: string;
+  weightGrams: number;
   sellPrice: number;
   stockQty: number;
   status: 'In Stock' | 'Low Stock' | 'Out of Stock';
@@ -293,6 +313,7 @@ export interface PublicSettings {
   currencyCode: 'LKR' | 'USD' | 'EUR' | 'GBP';
   timezone: string;
   defaultDeliveryFee: number;
+  deliveryPricing: GeneralSettings['deliveryPricing'];
   sellerWhatsappPhone: string;
 }
 
@@ -307,8 +328,18 @@ export interface PublicCreateOrderInput {
   customerPhone: string;
   customerAddress: string;
   paymentMethod: 'COD' | 'BankTransfer';
-  deliveryFee?: number;
   items: PublicCreateOrderItem[];
+}
+
+export interface PublicDeliveryQuoteInput {
+  customerProvince: string;
+  items: Array<{ variantId: string; qty: number }>;
+}
+
+export interface PublicDeliveryQuote {
+  customerProvince: string;
+  totalWeightGrams: number;
+  deliveryFee: number;
 }
 
 export interface PublicTopSellingItem {
@@ -368,6 +399,11 @@ export const publicApi = {
     publicRequest<ApiResponse<PublicSettings>>('/public/settings'),
   getTopSelling: (limit = 6) =>
     publicRequest<ApiResponse<PublicTopSellingItem[]>>(`/public/top-selling?limit=${limit}`),
+  quoteDelivery: (data: PublicDeliveryQuoteInput) =>
+    publicRequest<ApiResponse<PublicDeliveryQuote>>('/public/delivery/quote', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   createOrder: (data: PublicCreateOrderInput) =>
     publicRequest<ApiResponse<Order>>('/public/orders', {
       method: 'POST',
@@ -409,6 +445,7 @@ export const api = {
         productTypeId: string;
         colorId: string;
         size?: string;
+        weightGrams: number;
         costPrice: number;
         sellPrice: number;
         stockQty?: number;

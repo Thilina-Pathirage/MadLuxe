@@ -20,6 +20,7 @@ const variantSchema = new mongoose.Schema(
     productType: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductType', required: true },
     size: { type: String, default: 'N/A', trim: true },
     color: { type: mongoose.Schema.Types.ObjectId, ref: 'Color', required: true },
+    weightGrams: { type: Number, required: true, min: 1, default: 1000 },
     costPrice: { type: Number, required: true, min: 0 },
     sellPrice: { type: Number, required: true, min: 0 },
     stockQty: { type: Number, default: 0, min: 0 },

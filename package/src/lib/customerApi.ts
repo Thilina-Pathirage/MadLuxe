@@ -84,6 +84,8 @@ export const customerApi = {
 export interface CustomerOrderItem {
   variantLabel: string;
   qty: number;
+  unitWeightGrams?: number;
+  lineWeightGrams?: number;
   unitPrice: number;
   lineTotal: number;
   lineFinal: number;
@@ -96,6 +98,7 @@ export interface CustomerOrder {
   customerName: string;
   total: number;
   subtotal: number;
+  totalWeightGrams?: number;
   deliveryFee: number;
   paymentMethod: "COD" | "BankTransfer";
   status: "Pending" | "Completed" | "Cancelled" | "Deleted";

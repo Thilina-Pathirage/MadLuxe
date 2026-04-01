@@ -215,6 +215,7 @@ async function seed() {
     productType: ptByName[typeName],
     size,
     color: colorMap[colorName],
+    weightGrams: 1000,
     costPrice,
     sellPrice,
     stockQty,

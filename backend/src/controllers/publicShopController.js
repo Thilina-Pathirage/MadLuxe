@@ -1,9 +1,11 @@
 const Variant = require('../models/Variant');
 const ProductType = require('../models/ProductType');
 const StockMovement = require('../models/StockMovement');
+const mongoose = require('mongoose');
 const { success, error } = require('../utils/apiResponse');
-const { getOrCreateGeneralSettings } = require('../services/generalSettingsService');
+const { getResolvedGeneralSettings } = require('../services/generalSettingsService');
 const { getTopSellingVariants } = require('../services/topSellingService');
+const { calculateDeliveryFee } = require('../utils/deliveryPricing');
 
 const POPULATE_FIELDS = [
   { path: 'category', select: 'name' },
@@ -24,7 +26,7 @@ const getPublicVariants = async (req, res, next) => {
     const [data, total] = await Promise.all([
       Variant.find(filter)
         .populate(POPULATE_FIELDS)
-        .select('sku category productType color size sellPrice stockQty images createdAt')
+        .select('sku category productType color size weightGrams sellPrice stockQty images createdAt')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
@@ -62,7 +64,7 @@ const getPublicBatches = async (req, res, next) => {
           { path: 'productType', select: 'name' },
           { path: 'color', select: 'name hexCode' },
         ],
-        select: 'sku category productType color size stockQty sellPrice images createdAt isActive',
+        select: 'sku category productType color size weightGrams stockQty sellPrice images createdAt isActive',
       })
       .select('_id variant sellPrice qtyRemaining createdAt')
       .sort({ createdAt: -1 });
@@ -114,6 +116,7 @@ const getPublicBatches = async (req, res, next) => {
               productType: v.productType,
               color: v.color,
               size: v.size,
+              weightGrams: v.weightGrams,
               stockQty: v.stockQty,
               images: v.images,
               createdAt: v.createdAt,
@@ -137,7 +140,7 @@ const getPublicVariantById = async (req, res, next) => {
   try {
     const data = await Variant.findOne({ _id: req.params.id, isActive: true })
       .populate(POPULATE_FIELDS)
-      .select('sku category productType color size sellPrice stockQty images createdAt');
+      .select('sku category productType color size weightGrams sellPrice stockQty images createdAt');
 
     if (!data) return error(res, 'Product not found', 404);
 
@@ -165,13 +168,72 @@ const getPublicProductTypes = async (req, res, next) => {
 
 const getPublicSettings = async (req, res, next) => {
   try {
-    const settings = await getOrCreateGeneralSettings();
+    const settings = await getResolvedGeneralSettings();
     return success(res, {
       data: {
         currencyCode: settings.currencyCode,
         timezone: settings.timezone,
         defaultDeliveryFee: settings.defaultDeliveryFee,
+        deliveryPricing: settings.deliveryPricing,
         sellerWhatsappPhone: settings.sellerWhatsappPhone || '',
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const quotePublicDelivery = async (req, res, next) => {
+  try {
+    const { customerProvince, items: rawItems } = req.body || {};
+    if (!customerProvince || !String(customerProvince).trim()) {
+      return error(res, 'Customer province is required', 400);
+    }
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      return error(res, 'Items are required to calculate delivery fee', 400);
+    }
+
+    const normalizedItems = rawItems
+      .map((item) => ({
+        variantId: String(item?.variantId || '').trim(),
+        qty: Number(item?.qty || 0),
+      }))
+      .filter((item) => item.variantId && Number.isInteger(item.qty) && item.qty > 0);
+
+    if (!normalizedItems.length) {
+      return error(res, 'Items must include valid variantId and qty values', 400);
+    }
+    if (normalizedItems.some((item) => !mongoose.Types.ObjectId.isValid(item.variantId))) {
+      return error(res, 'Items must include valid variant IDs', 400);
+    }
+
+    const variantIds = Array.from(new Set(normalizedItems.map((item) => item.variantId)));
+    const variants = await Variant.find({ _id: { $in: variantIds }, isActive: true })
+      .select('_id weightGrams')
+      .lean();
+    const variantMap = new Map(variants.map((variant) => [String(variant._id), variant]));
+
+    let totalWeightGrams = 0;
+    for (const item of normalizedItems) {
+      const variant = variantMap.get(item.variantId);
+      if (!variant) return error(res, 'One or more selected products are unavailable', 400);
+      const unitWeight = Math.max(1, Math.round(Number(variant.weightGrams) || 1000));
+      totalWeightGrams += unitWeight * item.qty;
+    }
+
+    const settings = await getResolvedGeneralSettings();
+    const calculation = calculateDeliveryFee({
+      province: customerProvince,
+      totalWeightGrams,
+      deliveryPricing: settings.deliveryPricing,
+      fallbackBaseFee: Number(settings.defaultDeliveryFee ?? 300),
+    });
+
+    return success(res, {
+      data: {
+        customerProvince: calculation.province,
+        totalWeightGrams: calculation.totalWeightGrams,
+        deliveryFee: calculation.deliveryFee,
       },
     });
   } catch (err) {
@@ -200,5 +262,6 @@ module.exports = {
   getPublicVariantById,
   getPublicProductTypes,
   getPublicSettings,
+  quotePublicDelivery,
   getPublicTopSelling,
 };

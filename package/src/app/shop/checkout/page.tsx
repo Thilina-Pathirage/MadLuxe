@@ -59,6 +59,9 @@ export default function ShopCheckoutPage() {
   const [phoneError, setPhoneError] = useState("");
   const [addressError, setAddressError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "BankTransfer">("COD");
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [totalWeightGrams, setTotalWeightGrams] = useState(0);
+  const [deliveryQuoteError, setDeliveryQuoteError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
@@ -104,11 +107,39 @@ export default function ShopCheckoutPage() {
   );
 
   const total = useMemo(() => getPublicCartSubtotal(cartItems), [cartItems]);
-  const deliveryFee = useMemo(() => {
-    const fee = Number(settings?.defaultDeliveryFee ?? 0);
-    return Number.isFinite(fee) && fee > 0 ? fee : 0;
-  }, [settings?.defaultDeliveryFee]);
   const payableTotal = useMemo(() => total + deliveryFee, [total, deliveryFee]);
+
+  useEffect(() => {
+    if (!cartItems.length || !customerProvince) {
+      setDeliveryFee(0);
+      setTotalWeightGrams(0);
+      setDeliveryQuoteError(null);
+      return;
+    }
+
+    let cancelled = false;
+    publicApi
+      .quoteDelivery({
+        customerProvince,
+        items: cartItems.map((item) => ({ variantId: item.variantId, qty: item.qty })),
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setDeliveryFee(Math.max(0, Number(res.data.deliveryFee || 0)));
+        setTotalWeightGrams(Math.max(0, Math.round(Number(res.data.totalWeightGrams || 0))));
+        setDeliveryQuoteError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setDeliveryFee(0);
+        setTotalWeightGrams(0);
+        setDeliveryQuoteError(err instanceof Error ? err.message : "Unable to calculate delivery fee.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cartItems, customerProvince]);
 
   const sellerWhatsapp = String(settings?.sellerWhatsappPhone || "").trim();
   const sanitizedSellerPhone = sellerWhatsapp.replace(/[^\d]/g, "");
@@ -195,6 +226,10 @@ export default function ShopCheckoutPage() {
       setErrorMessage("Your cart is empty.");
       return;
     }
+    if (!customerProvince) {
+      setErrorMessage("Please select your province to calculate delivery.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -209,7 +244,6 @@ export default function ShopCheckoutPage() {
         customerDistrict: customerDistrict,
         customerCity: customerCity.trim(),
         paymentMethod,
-        deliveryFee,
         items: cartItems.map((item) => ({
           variantId: item.variantId,
           batchId: item.batchId,
@@ -446,6 +480,7 @@ export default function ShopCheckoutPage() {
           value={customerProvince}
           onChange={(e) => handleProvinceChange(e.target.value)}
           fullWidth
+          required
           sx={{ mb: 1.5 }}
         >
           <MenuItem value=""><em>Select province</em></MenuItem>
@@ -563,6 +598,15 @@ export default function ShopCheckoutPage() {
             {formatPrice(deliveryFee)}
           </Typography>
         </Box>
+        <Typography sx={{ color: textMuted, fontSize: "0.78rem", mb: 0.6 }}>
+          Delivery fee is calculating according to your order approximate weight and delivery location.
+        </Typography>
+        <Box sx={{ mb: 1.2, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
+          <Typography sx={{ color: textMuted, fontWeight: 600 }}>Order Total Weight</Typography>
+          <Typography sx={{ color: textPrimary, fontWeight: 700, fontSize: "0.92rem" }}>
+            {(totalWeightGrams / 1000).toFixed(2)} kg
+          </Typography>
+        </Box>
         <Box sx={{ mb: 1.4, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
           <Typography sx={{ color: textMuted, fontWeight: 700 }}>Payable Total</Typography>
           <Typography sx={{ color: accent, fontWeight: 800, fontSize: "1.3rem" }}>
@@ -571,6 +615,7 @@ export default function ShopCheckoutPage() {
         </Box>
 
         {errorMessage && <Alert severity="error" sx={{ mb: 1.6 }}>{errorMessage}</Alert>}
+        {deliveryQuoteError && <Alert severity="warning" sx={{ mb: 1.6 }}>{deliveryQuoteError}</Alert>}
 
         <Button
           type="submit"

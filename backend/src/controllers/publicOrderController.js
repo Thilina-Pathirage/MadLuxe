@@ -6,7 +6,8 @@ const StockMovement = require('../models/StockMovement');
 const Customer = require('../models/Customer');
 const generateOrderRef = require('../utils/generateOrderRef');
 const { success, error } = require('../utils/apiResponse');
-const { getOrCreateGeneralSettings } = require('../services/generalSettingsService');
+const { getResolvedGeneralSettings } = require('../services/generalSettingsService');
+const { calculateDeliveryFee } = require('../utils/deliveryPricing');
 
 const signCustomerToken = (id) =>
   jwt.sign({ id, type: 'customer' }, process.env.JWT_SECRET, {
@@ -22,7 +23,7 @@ const POPULATE_ITEMS = {
     { path: 'productType', select: 'name' },
     { path: 'color', select: 'name hexCode' },
   ],
-  select: 'sku size images',
+  select: 'sku size images weightGrams',
 };
 
 const isMongoId = (value) => mongoose.Types.ObjectId.isValid(String(value || ''));
@@ -96,7 +97,6 @@ const createPublicOrder = async (req, res, next) => {
       customerDistrict,
       customerCity,
       paymentMethod,
-      deliveryFee,
       items: rawItems,
       createAccount,
     } = req.body;
@@ -111,6 +111,7 @@ const createPublicOrder = async (req, res, next) => {
     if (!resolvedName) return error(res, 'Customer name is required', 400);
     if (!resolvedPhone) return error(res, 'Customer phone number is required', 400);
     if (!resolvedAddress) return error(res, 'Customer address is required', 400);
+    if (!resolvedProvince) return error(res, 'Customer province is required', 400);
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
       return error(res, 'Order must contain at least one item', 400);
     }
@@ -121,13 +122,7 @@ const createPublicOrder = async (req, res, next) => {
       return error(res, 'Payment method must be COD or BankTransfer', 400);
     }
 
-    const settings = await getOrCreateGeneralSettings();
-    const defaultDeliveryFee = Number(settings?.defaultDeliveryFee ?? 0);
-    const requestedDeliveryFee = Number(deliveryFee);
-    const resolvedDeliveryFee =
-      Number.isFinite(requestedDeliveryFee) && requestedDeliveryFee >= 0
-        ? requestedDeliveryFee
-        : (Number.isFinite(defaultDeliveryFee) && defaultDeliveryFee >= 0 ? defaultDeliveryFee : 0);
+    const settings = await getResolvedGeneralSettings();
 
     const normalized = normalizeItems(rawItems);
     if (normalized.errorMessage) {
@@ -145,7 +140,7 @@ const createPublicOrder = async (req, res, next) => {
         .populate('category', 'name')
         .populate('productType', 'name')
         .populate('color', 'name')
-        .select('sku category productType color size sellPrice costPrice stockQty isActive'),
+        .select('sku category productType color size weightGrams sellPrice costPrice stockQty isActive'),
     ]);
 
     const batchMap = new Map(batches.map((batch) => [String(batch._id), batch]));
@@ -273,6 +268,8 @@ const createPublicOrder = async (req, res, next) => {
       const orderItems = lineItems.map((item) => {
         const variant = variantMap.get(item.variantId);
         const batch = batchMap.get(item.batchId);
+        const unitWeightGrams = Math.max(1, Math.round(Number(variant.weightGrams) || 1000));
+        const lineWeightGrams = unitWeightGrams * item.qty;
 
         const unitPrice = Number(batch.sellPrice ?? variant.sellPrice ?? 0);
         const costPrice = Number(batch.costPrice ?? variant.costPrice ?? 0);
@@ -282,6 +279,8 @@ const createPublicOrder = async (req, res, next) => {
           variant: variant._id,
           variantLabel: buildVariantLabel(variant),
           qty: item.qty,
+          unitWeightGrams,
+          lineWeightGrams,
           unitPrice,
           costPrice,
           lineTotal,
@@ -297,6 +296,14 @@ const createPublicOrder = async (req, res, next) => {
       });
 
       const subtotal = round2(orderItems.reduce((sum, item) => sum + item.lineTotal, 0));
+      const totalWeightGrams = orderItems.reduce((sum, item) => sum + item.lineWeightGrams, 0);
+      const deliveryCalc = calculateDeliveryFee({
+        province: resolvedProvince,
+        totalWeightGrams,
+        deliveryPricing: settings?.deliveryPricing,
+        fallbackBaseFee: Number(settings?.defaultDeliveryFee ?? 300),
+      });
+      const resolvedDeliveryFee = round2(deliveryCalc.deliveryFee);
       const finalTotal = round2(subtotal + resolvedDeliveryFee);
 
       createdOrder = await Order.create({
@@ -318,6 +325,7 @@ const createPublicOrder = async (req, res, next) => {
         manualDiscount: 0,
         manualDiscountAmount: 0,
         total: finalTotal,
+        totalWeightGrams,
         paymentMethod: resolvedPaymentMethod,
         deliveryFee: resolvedDeliveryFee,
         status: 'Pending',
