@@ -12,9 +12,9 @@ const baselightTheme = createTheme({
   direction: "ltr",
   palette: {
     primary: {
-      main: "#1E3A5F",
-      light: "#e8eef5",
-      dark: "#022448",
+      main: "#1B4332",
+      light: "#e8f5ee",
+      dark: "#0a2e1a",
       contrastText: "#ffffff",
     },
     secondary: {
@@ -63,9 +63,9 @@ const baselightTheme = createTheme({
       secondary: "#43474e",
     },
     action: {
-      disabledBackground: "rgba(30,58,95,0.25)",
+      disabledBackground: "rgba(27,67,50,0.25)",
       hoverOpacity: 0.04,
-      hover: "rgba(30,58,95,0.04)",
+      hover: "rgba(27,67,50,0.04)",
     },
     divider: "rgba(196,198,207,0.2)",
   },
@@ -77,7 +77,7 @@ const baselightTheme = createTheme({
       lineHeight: "2.75rem",
       letterSpacing: "-0.02em",
       fontFamily: plus.style.fontFamily,
-      color: "#022448",
+      color: "#0a2e1a",
     },
     h2: {
       fontWeight: 700,
@@ -85,7 +85,7 @@ const baselightTheme = createTheme({
       lineHeight: "2.25rem",
       letterSpacing: "-0.02em",
       fontFamily: plus.style.fontFamily,
-      color: "#022448",
+      color: "#0a2e1a",
     },
     h3: {
       fontWeight: 600,
@@ -173,9 +173,9 @@ const baselightTheme = createTheme({
           color: "#ffffff !important",
         },
         containedPrimary: {
-          background: "linear-gradient(180deg, #1E3A5F 0%, #022448 100%)",
+          background: "linear-gradient(180deg, #1B4332 0%, #0a2e1a 100%)",
           "&:hover": {
-            background: "linear-gradient(180deg, #22416a 0%, #062d54 100%)",
+            background: "linear-gradient(180deg, #1f4d3a 0%, #0f3522 100%)",
           },
           "&.Mui-disabled": {
             background: "#f2f4f6",
@@ -288,13 +288,13 @@ const basedarkTheme = createTheme({
   palette: {
     mode: "dark",
     primary: {
-      main: "#64B5F6",
-      light: "#1E3A5F",
-      dark: "#2196F3",
+      main: "#40916c",
+      light: "#1b4332",
+      dark: "#2d6a4f",
     },
     secondary: {
       main: "#81C784",
-      light: "#2E86AB",
+      light: "#2d6a4f",
       dark: "#4CAF50",
     },
     success: {
@@ -322,27 +322,27 @@ const basedarkTheme = createTheme({
       contrastText: "#ffffff",
     },
     grey: {
-      100: "#0f0f0f",
-      200: "#1a1a1a",
-      300: "#252525",
-      400: "#404040",
+      100: "#0a0f0b",
+      200: "#141a15",
+      300: "#1e261f",
+      400: "#384039",
       500: "#bdbdbd",
       600: "#e0e0e0",
     },
     background: {
-      default: "#0a0a0a",
-      paper: "#121212",
+      default: "#080d09",
+      paper: "#0d1410",
     },
     text: {
       primary: "#ffffff",
-      secondary: "#b0bec5",
+      secondary: "#a0b5a8",
     },
     action: {
-      disabledBackground: "rgba(100,181,246,0.12)",
+      disabledBackground: "rgba(64,145,108,0.12)",
       hoverOpacity: 0.08,
-      hover: "rgba(100,181,246,0.08)",
+      hover: "rgba(64,145,108,0.08)",
     },
-    divider: "rgba(100,181,246,0.12)",
+    divider: "rgba(64,145,108,0.12)",
   },
   typography: {
     fontFamily: plus.style.fontFamily,
@@ -414,7 +414,7 @@ const basedarkTheme = createTheme({
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          backgroundColor: "#0a0a0a",
+          backgroundColor: "#080d09",
         },
         ".MuiPaper-elevation9, .MuiPopover-root .MuiPaper-elevation": {
           boxShadow:
@@ -427,8 +427,8 @@ const basedarkTheme = createTheme({
         root: {
           borderRadius: "12px",
           boxShadow: "0 20px 40px rgba(0, 0, 0, 0.3)",
-          border: "1px solid rgba(100,181,246,0.12)",
-          backgroundColor: "#121212",
+          border: "1px solid rgba(64,145,108,0.12)",
+          backgroundColor: "#0d1410",
         },
       },
     },
@@ -446,62 +446,62 @@ const basedarkTheme = createTheme({
           },
         },
         containedPrimary: {
-          background: "linear-gradient(180deg, #64B5F6 0%, #2196F3 100%)",
+          background: "linear-gradient(180deg, #40916c 0%, #2d6a4f 100%)",
           "&:hover": {
-            background: "linear-gradient(180deg, #90CAF9 0%, #64B5F6 100%)",
+            background: "linear-gradient(180deg, #52b788 0%, #40916c 100%)",
           },
           "&.Mui-disabled": {
-            background: "#1a1a1a",
+            background: "#141a15",
           },
         },
         containedSecondary: {
           "&.Mui-disabled": {
-            backgroundColor: "#1a1a1a",
+            backgroundColor: "#141a15",
           },
         },
         containedError: {
           "&.Mui-disabled": {
-            backgroundColor: "#1a1a1a",
+            backgroundColor: "#141a15",
           },
         },
         containedWarning: {
           "&.Mui-disabled": {
-            backgroundColor: "#1a1a1a",
+            backgroundColor: "#141a15",
           },
         },
         containedSuccess: {
           "&.Mui-disabled": {
-            backgroundColor: "#1a1a1a",
+            backgroundColor: "#141a15",
           },
         },
         outlinedPrimary: {
           "&.Mui-disabled": {
-            backgroundColor: "#1a1a1a",
-            borderColor: "#252525",
+            backgroundColor: "#141a15",
+            borderColor: "#1e261f",
           },
         },
         outlinedSecondary: {
           "&.Mui-disabled": {
-            backgroundColor: "#1a1a1a",
-            borderColor: "#252525",
+            backgroundColor: "#141a15",
+            borderColor: "#1e261f",
           },
         },
         outlinedError: {
           "&.Mui-disabled": {
-            backgroundColor: "#1a1a1a",
-            borderColor: "#252525",
+            backgroundColor: "#141a15",
+            borderColor: "#1e261f",
           },
         },
         outlinedWarning: {
           "&.Mui-disabled": {
-            backgroundColor: "#1a1a1a",
-            borderColor: "#252525",
+            backgroundColor: "#141a15",
+            borderColor: "#1e261f",
           },
         },
         outlinedSuccess: {
           "&.Mui-disabled": {
-            backgroundColor: "#1a1a1a",
-            borderColor: "#252525",
+            backgroundColor: "#141a15",
+            borderColor: "#1e261f",
           },
         },
       },
@@ -511,9 +511,9 @@ const basedarkTheme = createTheme({
         root: {
           "& .MuiOutlinedInput-root": {
             borderRadius: "6px",
-            backgroundColor: "#1a1a1a",
+            backgroundColor: "#141a15",
             "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#64B5F6",
+              borderColor: "#40916c",
               borderWidth: "2px",
             },
           },
@@ -537,7 +537,7 @@ const basedarkTheme = createTheme({
           textTransform: "uppercase",
           letterSpacing: "0.05em",
           color: "#b0bec5",
-          backgroundColor: "#1a1a1a",
+          backgroundColor: "#141a15",
           borderBottom: "1px solid rgba(100,181,246,0.12)",
         },
         root: {

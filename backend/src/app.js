@@ -23,6 +23,7 @@
   DELETE /api/colors/:id
 
   GET    /api/variants?category=&productType=&size=&color=&search=&lowStock=&page=&limit=
+  GET    /api/public/batches?category=&productType=&search=&inStock=&page=&limit=
   GET    /api/variants/low-stock/count
   GET    /api/variants/:id
   POST   /api/variants
@@ -122,7 +123,13 @@ app.get('/api/public/variants/:id', require('./controllers/publicShopController'
 app.get('/api/public/product-types', require('./controllers/publicShopController').getPublicProductTypes);
 app.get('/api/public/settings', require('./controllers/publicShopController').getPublicSettings);
 app.get('/api/public/top-selling', require('./controllers/publicShopController').getPublicTopSelling);
-app.post('/api/public/orders', require('./controllers/publicOrderController').createPublicOrder);
+
+// Public order creation — optionally links to customer account
+const { optionalCustomerAuth } = require('./middleware/customerProtect');
+app.post('/api/public/orders', optionalCustomerAuth, require('./controllers/publicOrderController').createPublicOrder);
+
+// Customer auth & profile routes (uses customerProtect internally per-route)
+app.use('/api/public/customer', require('./routes/customerAuth'));
 
 // Apply JWT protection to all subsequent /api/* routes
 app.use('/api', require('./middleware/protect'));

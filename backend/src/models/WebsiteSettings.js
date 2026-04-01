@@ -24,6 +24,7 @@ const heroSlideSchema = new mongoose.Schema(
 const websiteSettingsSchema = new mongoose.Schema(
   {
     key: { type: String, default: 'website', unique: true, immutable: true },
+    heroAutoSlide: { type: Boolean, default: true },
     heroSlides: {
       type: [heroSlideSchema],
       default: [

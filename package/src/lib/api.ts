@@ -230,6 +230,7 @@ export interface WebsiteHeroSlide {
 export interface WebsiteSettings {
   _id?: string;
   key?: string;
+  heroAutoSlide: boolean;
   heroSlides: WebsiteHeroSlide[];
 }
 
@@ -520,7 +521,7 @@ export const api = {
     }),
   getWebsiteSettings: () =>
     request<ApiResponse<WebsiteSettings>>('/settings/website'),
-  updateWebsiteSettings: (data: Pick<WebsiteSettings, 'heroSlides'>) =>
+  updateWebsiteSettings: (data: Pick<WebsiteSettings, 'heroAutoSlide' | 'heroSlides'>) =>
     request<ApiResponse<WebsiteSettings>>('/settings/website', {
       method: 'PUT',
       body: JSON.stringify(data),

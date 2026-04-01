@@ -19,7 +19,9 @@ const normalizeImage = (image) => {
 const getWebsiteSettings = async (req, res, next) => {
   try {
     const settings = await getOrCreateWebsiteSettings();
-    return success(res, { data: settings });
+    const data = settings.toObject();
+    data.heroAutoSlide = data.heroAutoSlide !== false;
+    return success(res, { data });
   } catch (err) {
     next(err);
   }
@@ -28,6 +30,9 @@ const getWebsiteSettings = async (req, res, next) => {
 const updateWebsiteSettings = async (req, res, next) => {
   try {
     const settings = await getOrCreateWebsiteSettings();
+    const shouldAutoSlide = typeof req.body.heroAutoSlide === 'boolean'
+      ? req.body.heroAutoSlide
+      : settings.heroAutoSlide !== false;
 
     const nextSlides = (req.body.heroSlides || []).map((slide, index) => ({
       title: String(slide.title || '').trim(),
@@ -47,6 +52,7 @@ const updateWebsiteSettings = async (req, res, next) => {
         .filter(Boolean)
     );
 
+    settings.heroAutoSlide = shouldAutoSlide;
     settings.heroSlides = nextSlides;
     await settings.save();
 
@@ -94,7 +100,7 @@ const uploadHeroImage = async (req, res, next) => {
 const getPublicBanners = async (req, res, next) => {
   try {
     const settings = await getOrCreateWebsiteSettings();
-    const data = (settings.heroSlides || [])
+    const heroSlides = (settings.heroSlides || [])
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((slide) => ({
@@ -104,7 +110,12 @@ const getPublicBanners = async (req, res, next) => {
         imageUrl: slide.image?.url ?? null,
       }));
 
-    return success(res, { data });
+    return success(res, {
+      data: {
+        heroAutoSlide: settings.heroAutoSlide !== false,
+        heroSlides,
+      },
+    });
   } catch (err) {
     next(err);
   }

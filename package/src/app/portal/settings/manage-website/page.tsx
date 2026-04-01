@@ -8,8 +8,10 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  FormControlLabel,
   IconButton,
   Snackbar,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -45,26 +47,30 @@ const createEmptySlide = (index: number): EditableSlide => ({
   sortOrder: index,
 });
 
-const serializeSlides = (slides: EditableSlide[]) =>
+const serializeSettings = (slides: EditableSlide[], heroAutoSlide: boolean) =>
   JSON.stringify(
-    slides.map((slide, index) => ({
-      title: slide.title.trim(),
-      subtitle: slide.subtitle.trim(),
-      sortOrder: index,
-      image: slide.image
-        ? {
-            fileId: slide.image.fileId,
-            filename: slide.image.filename,
-            contentType: slide.image.contentType,
-            size: slide.image.size,
-            url: slide.image.url,
-          }
-        : null,
-    }))
+    {
+      heroAutoSlide,
+      slides: slides.map((slide, index) => ({
+        title: slide.title.trim(),
+        subtitle: slide.subtitle.trim(),
+        sortOrder: index,
+        image: slide.image
+          ? {
+              fileId: slide.image.fileId,
+              filename: slide.image.filename,
+              contentType: slide.image.contentType,
+              size: slide.image.size,
+              url: slide.image.url,
+            }
+          : null,
+      })),
+    }
   );
 
 export default function ManageWebsitePage() {
   const [slides, setSlides] = useState<EditableSlide[]>([]);
+  const [heroAutoSlide, setHeroAutoSlide] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingSlideId, setUploadingSlideId] = useState<string | null>(null);
@@ -76,6 +82,7 @@ export default function ManageWebsitePage() {
     setLoading(true);
     try {
       const response = await api.getWebsiteSettings();
+      const resolvedAutoSlide = response.data?.heroAutoSlide !== false;
       const remoteSlides = (response.data?.heroSlides ?? [])
         .slice()
         .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -89,13 +96,15 @@ export default function ManageWebsitePage() {
 
       const resolvedSlides = remoteSlides.length > 0 ? remoteSlides : [createEmptySlide(0)];
       setSlides(resolvedSlides);
-      setInitialState(serializeSlides(resolvedSlides));
+      setHeroAutoSlide(resolvedAutoSlide);
+      setInitialState(serializeSettings(resolvedSlides, resolvedAutoSlide));
     } catch (err) {
       setSnackSeverity("error");
       setSnackMsg(err instanceof Error ? err.message : "Failed to load website settings.");
       const fallbackSlides = [createEmptySlide(0)];
       setSlides(fallbackSlides);
-      setInitialState(serializeSlides(fallbackSlides));
+      setHeroAutoSlide(true);
+      setInitialState(serializeSettings(fallbackSlides, true));
     } finally {
       setLoading(false);
     }
@@ -105,7 +114,10 @@ export default function ManageWebsitePage() {
     loadSettings();
   }, []);
 
-  const isDirty = useMemo(() => serializeSlides(slides) !== initialState, [slides, initialState]);
+  const isDirty = useMemo(
+    () => serializeSettings(slides, heroAutoSlide) !== initialState,
+    [slides, heroAutoSlide, initialState]
+  );
 
   const handleSlideChange = (id: string, key: "title" | "subtitle", value: string) => {
     setSlides((prev) => prev.map((slide) => (slide.id === id ? { ...slide, [key]: value } : slide)));
@@ -183,6 +195,7 @@ export default function ManageWebsitePage() {
     setSaving(true);
     try {
       const payload = {
+        heroAutoSlide,
         heroSlides: slides.map((slide, index) => ({
           title: slide.title.trim(),
           subtitle: slide.subtitle.trim(),
@@ -204,7 +217,9 @@ export default function ManageWebsitePage() {
         }));
 
       setSlides(normalizedSlides);
-      setInitialState(serializeSlides(normalizedSlides));
+      const resolvedAutoSlide = response.data?.heroAutoSlide !== false;
+      setHeroAutoSlide(resolvedAutoSlide);
+      setInitialState(serializeSettings(normalizedSlides, resolvedAutoSlide));
       setSnackSeverity("success");
       setSnackMsg("Website hero settings saved.");
     } catch (err) {
@@ -217,14 +232,27 @@ export default function ManageWebsitePage() {
 
   const handleReset = () => {
     try {
-      const parsed = JSON.parse(initialState) as Array<{
-        title: string;
-        subtitle: string;
-        image: ImageAsset | null;
-        sortOrder: number;
-      }>;
+      const parsed = JSON.parse(initialState) as
+        | {
+            heroAutoSlide?: boolean;
+            slides?: Array<{
+              title: string;
+              subtitle: string;
+              image: ImageAsset | null;
+              sortOrder: number;
+            }>;
+          }
+        | Array<{
+            title: string;
+            subtitle: string;
+            image: ImageAsset | null;
+            sortOrder: number;
+          }>;
 
-      const restored = parsed.map((slide, index) => ({
+      const savedSlides = Array.isArray(parsed) ? parsed : (parsed.slides ?? []);
+      const savedAutoSlide = Array.isArray(parsed) ? true : parsed.heroAutoSlide !== false;
+
+      const restored = savedSlides.map((slide, index) => ({
         id: `reset-${index}-${Date.now()}`,
         title: slide.title,
         subtitle: slide.subtitle,
@@ -232,6 +260,7 @@ export default function ManageWebsitePage() {
         sortOrder: slide.sortOrder,
       }));
 
+      setHeroAutoSlide(savedAutoSlide);
       setSlides(restored);
     } catch {
       // Keep current form state if parsing fails.
@@ -259,6 +288,17 @@ export default function ManageWebsitePage() {
       <Alert severity="info" sx={{ mb: 2.5 }}>
         Fixed CTA buttons for every slide: <strong>Shop Collection</strong> and <strong>Shop All</strong>.
       </Alert>
+      <FormControlLabel
+        sx={{ mb: 2 }}
+        control={
+          <Switch
+            checked={heroAutoSlide}
+            onChange={(_, checked) => setHeroAutoSlide(checked)}
+            color="primary"
+          />
+        }
+        label="Hero slider auto change"
+      />
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>

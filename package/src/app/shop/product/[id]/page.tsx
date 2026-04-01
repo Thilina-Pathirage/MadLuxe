@@ -37,7 +37,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   GBP: "\u00A3",
 };
 
-const FALLBACK_GRADIENT = "linear-gradient(145deg, #1D3557 0%, #2A9D8F 54%, #E9C46A 100%)";
+const FALLBACK_GRADIENT = "linear-gradient(145deg, #111111 0%, #2A9D8F 54%, #E9C46A 100%)";
 
 const formatBatchLabel = (batch: Pick<PublicBatch, "batchId" | "createdAt">) => {
   const date = new Date(batch.createdAt);
@@ -55,8 +55,8 @@ export default function ProductViewPage() {
   const isDark = theme.palette.mode === "dark";
 
   const accent = "#C9A84C";
-  const textPrimary = isDark ? "#F0EDE8" : "#0F1A2A";
-  const textMuted = isDark ? alpha("#D8D4CC", 0.72) : alpha("#2C3A4E", 0.68);
+  const textPrimary = isDark ? "#F0EDE8" : "#111111";
+  const textMuted = isDark ? alpha("#D8D4CC", 0.72) : alpha("#333333", 0.68);
 
   const [variant, setVariant] = useState<PublicVariant | null>(null);
   const [batches, setBatches] = useState<PublicBatch[]>([]);
@@ -342,7 +342,7 @@ export default function ProductViewPage() {
               borderRadius: "14px",
               overflow: "hidden",
               outline: "none",
-              border: `1px solid ${isDark ? alpha("#FFFFFF", 0.1) : alpha("#0F1A2A", 0.08)}`,
+              border: `1px solid ${isDark ? alpha("#FFFFFF", 0.1) : alpha("#111111", 0.08)}`,
               backgroundImage: activeImage ? `url(${activeImage})` : FALLBACK_GRADIENT,
               backgroundSize: "cover",
               backgroundPosition: "center",
@@ -365,10 +365,10 @@ export default function ProductViewPage() {
                     height: 36,
                     borderRadius: "8px",
                     color: "#FFFFFF",
-                    bgcolor: alpha("#060C14", 0.45),
+                    bgcolor: alpha("#000000", 0.45),
                     backdropFilter: "blur(4px)",
                     border: `1px solid ${alpha("#FFFFFF", 0.22)}`,
-                    "&:hover": { bgcolor: alpha("#060C14", 0.65), borderColor: accent },
+                    "&:hover": { bgcolor: alpha("#000000", 0.65), borderColor: accent },
                   }}
                 >
                   <ArrowBackIosNewRoundedIcon sx={{ fontSize: 14 }} />
@@ -385,10 +385,10 @@ export default function ProductViewPage() {
                     height: 36,
                     borderRadius: "8px",
                     color: "#FFFFFF",
-                    bgcolor: alpha("#060C14", 0.45),
+                    bgcolor: alpha("#000000", 0.45),
                     backdropFilter: "blur(4px)",
                     border: `1px solid ${alpha("#FFFFFF", 0.22)}`,
-                    "&:hover": { bgcolor: alpha("#060C14", 0.65), borderColor: accent },
+                    "&:hover": { bgcolor: alpha("#000000", 0.65), borderColor: accent },
                   }}
                 >
                   <ArrowForwardIosRoundedIcon sx={{ fontSize: 14 }} />
@@ -457,8 +457,8 @@ export default function ProductViewPage() {
 
         <Box
           sx={{
-            border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.08)}`,
-            bgcolor: isDark ? alpha("#0D1825", 0.72) : "#FFFFFF",
+            border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.08)}`,
+            bgcolor: isDark ? alpha("#0d1410", 0.72) : "#FFFFFF",
             borderRadius: "14px",
             p: { xs: 2, md: 2.5 },
           }}
@@ -485,7 +485,7 @@ export default function ProductViewPage() {
                   height: 24,
                   fontSize: "0.72rem",
                   fontWeight: 600,
-                  bgcolor: isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.05),
+                  bgcolor: isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.05),
                 }}
                 icon={
                   variant.color.hexCode ? (
@@ -511,7 +511,7 @@ export default function ProductViewPage() {
                   height: 24,
                   fontSize: "0.72rem",
                   fontWeight: 600,
-                  bgcolor: isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.05),
+                  bgcolor: isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.05),
                 }}
               />
             )}
@@ -526,8 +526,8 @@ export default function ProductViewPage() {
               mt: 2,
               p: 1.4,
               borderRadius: "10px",
-              border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.08)}`,
-              bgcolor: isDark ? alpha("#0A121E", 0.55) : alpha("#F7F6F2", 0.85),
+              border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.08)}`,
+              bgcolor: isDark ? alpha("#06120a", 0.7) : alpha("#F7F6F2", 0.85),
             }}
           >
             <Typography sx={{ fontSize: "0.74rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: textMuted, mb: 1 }}>
@@ -571,7 +571,7 @@ export default function ProductViewPage() {
                 display: "flex",
                 alignItems: "center",
                 borderRadius: "8px",
-                border: `1px solid ${isDark ? alpha("#FFFFFF", 0.16) : alpha("#0F1A2A", 0.16)}`,
+                border: `1px solid ${isDark ? alpha("#FFFFFF", 0.16) : alpha("#111111", 0.16)}`,
                 overflow: "hidden",
                 minWidth: 128,
               }}
@@ -608,14 +608,14 @@ export default function ProductViewPage() {
                 textTransform: "none",
                 fontWeight: 700,
                 bgcolor: accent,
-                color: isDark ? "#0F1A2A" : "#FFFFFF",
+                color: isDark ? "#111111" : "#FFFFFF",
                 borderRadius: "8px",
                 px: 2.2,
                 py: 1,
                 "&:hover": { bgcolor: "#D4B060" },
                 "&.Mui-disabled": {
-                  bgcolor: isDark ? alpha("#FFFFFF", 0.16) : alpha("#0F1A2A", 0.12),
-                  color: isDark ? alpha("#FFFFFF", 0.5) : alpha("#0F1A2A", 0.4),
+                  bgcolor: isDark ? alpha("#FFFFFF", 0.16) : alpha("#111111", 0.12),
+                  color: isDark ? alpha("#FFFFFF", 0.5) : alpha("#111111", 0.4),
                 },
               }}
             >
@@ -647,7 +647,7 @@ export default function ProductViewPage() {
             </Typography>
           )}
 
-          <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.08)}` }}>
+          <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.08)}` }}>
             <Typography sx={{ color: textMuted, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>
               SKU
             </Typography>

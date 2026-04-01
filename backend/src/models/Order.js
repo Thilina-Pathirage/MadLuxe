@@ -32,6 +32,9 @@ const orderSchema = new mongoose.Schema(
     customerName: { type: String, default: 'Walk-in Customer' },
     customerPhone: { type: String, default: '' },
     customerAddress: { type: String, default: '' },
+    customerProvince: { type: String, default: '' },
+    customerDistrict: { type: String, default: '' },
+    customerCity: { type: String, default: '' },
     customerSecondaryPhone: { type: String, default: '' },
     items: { type: [orderItemSchema], required: true },
 
@@ -61,6 +64,7 @@ const orderSchema = new mongoose.Schema(
       default: 'Completed',
     },
     notes: { type: String, default: '' },
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
   },
   { timestamps: true }
 );

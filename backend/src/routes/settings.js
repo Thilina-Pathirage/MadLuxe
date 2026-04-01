@@ -46,6 +46,10 @@ router.get('/website', websiteCtrl.getWebsiteSettings);
 router.put(
   '/website',
   [
+    body('heroAutoSlide')
+      .optional()
+      .isBoolean()
+      .withMessage('heroAutoSlide must be a boolean'),
     body('heroSlides')
       .isArray({ min: 1, max: 6 })
       .withMessage('heroSlides must contain between 1 and 6 slides'),

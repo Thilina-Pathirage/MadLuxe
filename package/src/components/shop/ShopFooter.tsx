@@ -8,10 +8,10 @@ const ShopFooter = () => {
   const isDark = theme.palette.mode === "dark";
   const textMuted = isDark
     ? alpha("#D8D4CC", 0.72)
-    : alpha("#2C3A4E", 0.68);
+    : alpha("#333333", 0.68);
   const divider = isDark
     ? alpha("#FFFFFF", 0.1)
-    : alpha("#0F1A2A", 0.1);
+    : alpha("#111111", 0.1);
 
   return (
     <Box

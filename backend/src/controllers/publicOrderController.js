@@ -1,10 +1,17 @@
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const Order = require('../models/Order');
 const Variant = require('../models/Variant');
 const StockMovement = require('../models/StockMovement');
+const Customer = require('../models/Customer');
 const generateOrderRef = require('../utils/generateOrderRef');
 const { success, error } = require('../utils/apiResponse');
 const { getOrCreateGeneralSettings } = require('../services/generalSettingsService');
+
+const signCustomerToken = (id) =>
+  jwt.sign({ id, type: 'customer' }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  });
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -85,14 +92,21 @@ const createPublicOrder = async (req, res, next) => {
       customerName,
       customerPhone,
       customerAddress,
+      customerProvince,
+      customerDistrict,
+      customerCity,
       paymentMethod,
       deliveryFee,
       items: rawItems,
+      createAccount,
     } = req.body;
 
     const resolvedName = String(customerName || '').trim();
     const resolvedPhone = String(customerPhone || '').trim();
     const resolvedAddress = String(customerAddress || '').trim();
+    const resolvedProvince = String(customerProvince || '').trim();
+    const resolvedDistrict = String(customerDistrict || '').trim();
+    const resolvedCity = String(customerCity || '').trim();
 
     if (!resolvedName) return error(res, 'Customer name is required', 400);
     if (!resolvedPhone) return error(res, 'Customer phone number is required', 400);
@@ -219,6 +233,38 @@ const createPublicOrder = async (req, res, next) => {
       decrementedVariants.push({ variantId, qty: qtyNeeded });
     }
 
+    // Resolve customer — auto-link if logged in, otherwise attempt account creation
+    let customerId = null;
+    let newCustomerToken = null;
+
+    if (req.customer) {
+      // Already authenticated customer
+      customerId = req.customer._id;
+    } else if (createAccount && typeof createAccount === 'object') {
+      const caEmail = String(createAccount.email || '').toLowerCase().trim();
+      const caPassword = String(createAccount.password || '');
+      if (caEmail && caPassword.length >= 6) {
+        const existing = await Customer.findOne({ email: caEmail });
+        if (!existing) {
+          const newCustomer = await Customer.create({
+            name: resolvedName,
+            email: caEmail,
+            password: caPassword,
+            phone: resolvedPhone,
+            address: resolvedAddress,
+            province: resolvedProvince,
+            district: resolvedDistrict,
+            city: resolvedCity,
+          });
+          customerId = newCustomer._id;
+          newCustomerToken = signCustomerToken(newCustomer._id);
+        } else {
+          // Email already taken — link order to existing account silently
+          customerId = existing._id;
+        }
+      }
+    }
+
     let createdOrder = null;
 
     try {
@@ -258,6 +304,9 @@ const createPublicOrder = async (req, res, next) => {
         customerName: resolvedName,
         customerPhone: resolvedPhone,
         customerAddress: resolvedAddress,
+        customerProvince: resolvedProvince,
+        customerDistrict: resolvedDistrict,
+        customerCity: resolvedCity,
         customerSecondaryPhone: '',
         items: orderItems,
         subtotal,
@@ -273,6 +322,7 @@ const createPublicOrder = async (req, res, next) => {
         deliveryFee: resolvedDeliveryFee,
         status: 'Pending',
         notes: '',
+        customer: customerId,
       });
 
       const runningVariantStock = new Map();
@@ -310,7 +360,10 @@ const createPublicOrder = async (req, res, next) => {
       .populate(POPULATE_ITEMS)
       .select('-__v');
 
-    return success(res, { data: populated }, 'Order created', 201);
+    const responsePayload = { data: populated };
+    if (newCustomerToken) responsePayload.customerToken = newCustomerToken;
+
+    return success(res, responsePayload, 'Order created', 201);
   } catch (err) {
     next(err);
   }

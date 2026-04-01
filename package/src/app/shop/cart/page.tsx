@@ -33,8 +33,8 @@ export default function ShopCartPage() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const accent = "#C9A84C";
-  const textPrimary = isDark ? "#F0EDE8" : "#0F1A2A";
-  const textMuted = isDark ? alpha("#D8D4CC", 0.72) : alpha("#2C3A4E", 0.68);
+  const textPrimary = isDark ? "#F0EDE8" : "#111111";
+  const textMuted = isDark ? alpha("#D8D4CC", 0.72) : alpha("#333333", 0.68);
 
   const items = usePublicCartItems();
   const [settings, setSettings] = useState<PublicSettings | null>(null);
@@ -78,7 +78,7 @@ export default function ShopCartPage() {
           component={Link}
           href="/shop"
           variant="contained"
-          sx={{ mt: 2.2, textTransform: "none", fontWeight: 700, bgcolor: accent, color: "#0F1A2A", "&:hover": { bgcolor: "#D4B060" } }}
+          sx={{ mt: 2.2, textTransform: "none", fontWeight: 700, bgcolor: accent, color: "#111111", "&:hover": { bgcolor: "#D4B060" } }}
         >
           Continue Shopping
         </Button>
@@ -94,8 +94,8 @@ export default function ShopCartPage() {
 
       <Box
         sx={{
-          border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.08)}`,
-          bgcolor: isDark ? alpha("#0D1825", 0.72) : "#FFFFFF",
+          border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.08)}`,
+          bgcolor: isDark ? alpha("#0d1410", 0.72) : "#FFFFFF",
           borderRadius: "14px",
           overflow: "hidden",
         }}
@@ -118,7 +118,7 @@ export default function ShopCartPage() {
                   borderRadius: "10px",
                   backgroundImage: item.imageUrl
                     ? `url(${item.imageUrl})`
-                    : "linear-gradient(145deg, #1D3557 0%, #2A9D8F 54%, #E9C46A 100%)",
+                    : "linear-gradient(145deg, #111111 0%, #2A9D8F 54%, #E9C46A 100%)",
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                 }}
@@ -167,7 +167,7 @@ export default function ShopCartPage() {
                 </Typography>
                 <IconButton
                   onClick={() => removePublicCartItem(item.lineId)}
-                  sx={{ mt: 0.6, color: isDark ? alpha("#FFFFFF", 0.7) : alpha("#0F1A2A", 0.65) }}
+                  sx={{ mt: 0.6, color: isDark ? alpha("#FFFFFF", 0.7) : alpha("#111111", 0.65) }}
                 >
                   <DeleteOutlineRoundedIcon fontSize="small" />
                 </IconButton>
@@ -198,7 +198,7 @@ export default function ShopCartPage() {
           fontWeight: 700,
           py: 1.1,
           bgcolor: accent,
-          color: "#0F1A2A",
+          color: "#111111",
           "&:hover": { bgcolor: "#D4B060" },
         }}
       >

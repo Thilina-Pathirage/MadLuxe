@@ -23,11 +23,11 @@ interface ProductCardProps {
 }
 
 const CATEGORY_PALETTES = [
-  ["#1D3557", "#2A9D8F", "#A8DADC"],
-  ["#3A0CA3", "#4361EE", "#4CC9F0"],
-  ["#264653", "#2A9D8F", "#E9C46A"],
+  ["#111111", "#2A9D8F", "#A8DADC"],
+  ["#111111", "#2d2d2d", "#666666"],
+  ["#1a1a1a", "#2A9D8F", "#E9C46A"],
   ["#4A1942", "#893168", "#F08080"],
-  ["#005F73", "#0A9396", "#94D2BD"],
+  ["#111111", "#0A9396", "#94D2BD"],
   ["#4F000B", "#720026", "#CE4257"],
 ];
 
@@ -85,8 +85,11 @@ const ProductCard = ({ batch, formatPrice }: ProductCardProps) => {
       sx={{
         borderRadius: "14px",
         overflow: "hidden",
-        border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.08)}`,
-        bgcolor: isDark ? alpha("#0D1825", 0.7) : "#FFFFFF",
+        border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.08)}`,
+        bgcolor: "transparent",
+        background: isDark
+          ? "linear-gradient(160deg, #000000 0%, #06120a 55%, #000000 100%)"
+          : "#FFFFFF",
         opacity: isOutOfStock ? 0.75 : 1,
         transition:
           "transform 300ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 300ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 300ms ease",
@@ -144,7 +147,7 @@ const ProductCard = ({ batch, formatPrice }: ProductCardProps) => {
         <Typography
           sx={{
             fontSize: "0.72rem",
-            color: isDark ? alpha("#D8D4CC", 0.6) : alpha("#2C3A4E", 0.55),
+            color: isDark ? alpha("#D8D4CC", 0.6) : alpha("#333333", 0.55),
             fontWeight: 500,
             mb: 1,
           }}
@@ -155,7 +158,7 @@ const ProductCard = ({ batch, formatPrice }: ProductCardProps) => {
         <Typography
           sx={{
             fontSize: "0.7rem",
-            color: isDark ? alpha("#D8D4CC", 0.64) : alpha("#2C3A4E", 0.58),
+            color: isDark ? alpha("#D8D4CC", 0.64) : alpha("#333333", 0.58),
             fontWeight: 600,
             mb: 1.1,
             letterSpacing: "0.02em",
@@ -174,7 +177,7 @@ const ProductCard = ({ batch, formatPrice }: ProductCardProps) => {
                 height: 22,
                 fontSize: "0.68rem",
                 fontWeight: 600,
-                bgcolor: isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.06),
+                bgcolor: isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.06),
                 "& .MuiChip-label": { px: 1 },
               }}
               icon={
@@ -201,7 +204,7 @@ const ProductCard = ({ batch, formatPrice }: ProductCardProps) => {
                 height: 22,
                 fontSize: "0.68rem",
                 fontWeight: 600,
-                bgcolor: isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.06),
+                bgcolor: isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.06),
                 "& .MuiChip-label": { px: 1 },
               }}
             />
@@ -228,7 +231,7 @@ const ProductCard = ({ batch, formatPrice }: ProductCardProps) => {
             >
               {formatPrice(batch.sellPrice)}
             </Typography>
-            <Typography sx={{ fontSize: "0.7rem", color: isDark ? alpha("#D8D4CC", 0.7) : alpha("#2C3A4E", 0.62) }}>
+            <Typography sx={{ fontSize: "0.7rem", color: isDark ? alpha("#D8D4CC", 0.7) : alpha("#333333", 0.62) }}>
               {batch.qtyRemaining} available
             </Typography>
           </Box>

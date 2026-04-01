@@ -44,10 +44,11 @@ const getPublicVariants = async (req, res, next) => {
 
 const getPublicBatches = async (req, res, next) => {
   try {
-    const { category, productType, variant, inStock = 'false', page = 1, limit = 24 } = req.query;
+    const { category, productType, variant, inStock = 'false', search, page = 1, limit = 24 } = req.query;
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.max(parseInt(limit, 10) || 24, 1);
     const inStockOnly = inStock === 'true';
+    const searchTerm = typeof search === 'string' ? search.trim().toLowerCase() : '';
 
     const filter = { type: 'IN' };
     if (variant) filter.variant = variant;
@@ -74,7 +75,22 @@ const getPublicBatches = async (req, res, next) => {
 
       const remaining = Number(movement.qtyRemaining ?? 0);
       if (inStockOnly) return remaining > 0;
-      return remaining >= 0;
+      if (remaining < 0) return false;
+
+      if (searchTerm) {
+        const searchable = [
+          v.sku,
+          v.category?.name,
+          v.productType?.name,
+          v.color?.name,
+        ]
+          .filter(Boolean)
+          .map((item) => String(item).toLowerCase());
+
+        return searchable.some((value) => value.includes(searchTerm));
+      }
+
+      return true;
     });
 
     const total = data.length;

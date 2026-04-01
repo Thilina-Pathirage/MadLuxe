@@ -9,7 +9,11 @@ import {
   Box,
   Button,
   Container,
+  Drawer,
   IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
   Skeleton,
   Toolbar,
   Tooltip,
@@ -20,6 +24,7 @@ import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRound
 import ArrowForwardIosRoundedIcon from "@mui/icons-material/ArrowForwardIosRounded";
 import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
+import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
 import { publicApi, type PublicTopSellingItem } from "@/lib/api";
 import { normalizeVariantImageUrl } from "@/utils/variantImage";
@@ -55,7 +60,7 @@ const FALLBACK_BANNERS: Banner[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=1800&q=80",
     overlay:
-      "linear-gradient(110deg, rgba(8,17,30,0.88) 14%, rgba(8,17,30,0.54) 48%, rgba(8,17,30,0.22) 100%)",
+      "linear-gradient(110deg, rgba(0,0,0,0.88) 14%, rgba(0,0,0,0.54) 48%, rgba(0,0,0,0.22) 100%)",
   },
   {
     id: "crafted-basics",
@@ -65,7 +70,7 @@ const FALLBACK_BANNERS: Banner[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1800&q=80",
     overlay:
-      "linear-gradient(110deg, rgba(7,15,25,0.87) 12%, rgba(7,15,25,0.53) 55%, rgba(7,15,25,0.2) 100%)",
+      "linear-gradient(110deg, rgba(0,0,0,0.87) 12%, rgba(0,0,0,0.53) 55%, rgba(0,0,0,0.2) 100%)",
   },
   {
     id: "exclusive-drop",
@@ -75,16 +80,16 @@ const FALLBACK_BANNERS: Banner[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1521334884684-d80222895322?auto=format&fit=crop&w=1800&q=80",
     overlay:
-      "linear-gradient(105deg, rgba(8,16,26,0.9) 12%, rgba(8,16,26,0.56) 50%, rgba(8,16,26,0.18) 100%)",
+      "linear-gradient(105deg, rgba(0,0,0,0.9) 12%, rgba(0,0,0,0.56) 50%, rgba(0,0,0,0.18) 100%)",
   },
 ];
 
 const CATEGORY_PALETTES = [
-  ["#1D3557", "#2A9D8F", "#A8DADC"],
-  ["#3A0CA3", "#4361EE", "#4CC9F0"],
-  ["#264653", "#2A9D8F", "#E9C46A"],
+  ["#111111", "#2A9D8F", "#A8DADC"],
+  ["#111111", "#2d2d2d", "#666666"],
+  ["#1a1a1a", "#2A9D8F", "#E9C46A"],
   ["#4A1942", "#893168", "#F08080"],
-  ["#005F73", "#0A9396", "#94D2BD"],
+  ["#111111", "#0A9396", "#94D2BD"],
   ["#4F000B", "#720026", "#CE4257"],
 ];
 
@@ -141,9 +146,11 @@ export default function LandingPage() {
   const [topSellingError, setTopSellingError] = useState("");
 
   const [banners, setBanners] = useState<Banner[]>(FALLBACK_BANNERS);
+  const [heroAutoSlideEnabled, setHeroAutoSlideEnabled] = useState(true);
   const [activeSlide, setActiveSlide] = useState(0);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -173,11 +180,19 @@ export default function LandingPage() {
       try {
         const response = await fetch(`${API_BASE}/public/banners`);
         const payload = await response.json();
-        const parsed = Array.isArray(payload?.data)
-          ? payload.data
-              .map((item: unknown, idx: number) => normalizeBanner(item, idx))
-              .filter((item: Banner | null): item is Banner => Boolean(item))
-          : [];
+        const rawData = payload?.data;
+        const heroAutoSlide = typeof rawData?.heroAutoSlide === "boolean" ? rawData.heroAutoSlide : true;
+        const rawSlides = Array.isArray(rawData?.heroSlides)
+          ? rawData.heroSlides
+          : Array.isArray(rawData)
+            ? rawData
+            : [];
+        const parsed = rawSlides
+          .map((item: unknown, idx: number) => normalizeBanner(item, idx))
+          .filter((item: Banner | null): item is Banner => Boolean(item));
+        if (!cancelled) {
+          setHeroAutoSlideEnabled(heroAutoSlide);
+        }
         if (!cancelled && parsed.length > 0) {
           setBanners(parsed);
           setActiveSlide(0);
@@ -211,17 +226,18 @@ export default function LandingPage() {
   }, [activeSlide, banners.length]);
 
   useEffect(() => {
-    if (prefersReducedMotion || isHeroPaused || banners.length <= 1) return;
+    if (prefersReducedMotion || !heroAutoSlideEnabled || isHeroPaused || banners.length <= 1) return;
     const timer = window.setInterval(() => {
       setActiveSlide((prev) => (prev + 1) % banners.length);
     }, HERO_AUTOPLAY_MS);
     return () => window.clearInterval(timer);
-  }, [banners.length, isHeroPaused, prefersReducedMotion]);
+  }, [banners.length, heroAutoSlideEnabled, isHeroPaused, prefersReducedMotion]);
 
   const activeBanner = banners[activeSlide] ?? FALLBACK_BANNERS[0];
   const controlsId = useMemo(() => `hero-slider-controls-${activeBanner.id}`, [activeBanner.id]);
   const goPrev = () => setActiveSlide((prev) => (prev - 1 + banners.length) % banners.length);
   const goNext = () => setActiveSlide((prev) => (prev + 1) % banners.length);
+  const closeMobileMenu = () => setMobileMenuOpen(false);
 
   const sortedCategories = useMemo(
     () => [...categories].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
@@ -231,11 +247,11 @@ export default function LandingPage() {
   // Design tokens
   const accent = "#C9A84C";
   const accentDark = "#A07830";
-  const pageBg = isDark ? "#060C14" : "#F8F6F1";
-  const textPrimary = isDark ? "#F0EDE8" : "#0F1A2A";
-  const textMuted = isDark ? alpha("#D8D4CC", 0.72) : alpha("#2C3A4E", 0.68);
-  const divider = isDark ? alpha("#FFFFFF", 0.1) : alpha("#0F1A2A", 0.1);
-  const navBg = isDark ? alpha("#060C14", 0.7) : alpha("#F8F6F1", 0.8);
+  const pageBg = isDark ? "#000000" : "#F8F6F1";
+  const textPrimary = isDark ? "#F0EDE8" : "#111111";
+  const textMuted = isDark ? alpha("#D8D4CC", 0.72) : alpha("#333333", 0.68);
+  const divider = isDark ? alpha("#FFFFFF", 0.1) : alpha("#111111", 0.1);
+  const navBg = isDark ? alpha("#000000", 0.7) : alpha("#F8F6F1", 0.8);
 
   return (
     <Box
@@ -281,7 +297,7 @@ export default function LandingPage() {
                 background: `linear-gradient(145deg, ${accent} 0%, ${accentDark} 100%)`,
                 display: "grid",
                 placeItems: "center",
-                color: "#0F1A2A",
+                color: "#111111",
                 fontWeight: 900,
                 fontSize: "0.9rem",
                 letterSpacing: "-0.04em",
@@ -308,6 +324,7 @@ export default function LandingPage() {
               href="/shop"
               size="small"
               sx={{
+                display: { xs: "none", md: "inline-flex" },
                 color: textMuted,
                 fontSize: "0.8rem",
                 fontWeight: 600,
@@ -319,6 +336,23 @@ export default function LandingPage() {
             >
               Shop
             </Button>
+
+            <IconButton
+              aria-label="Open navigation menu"
+              size="small"
+              onClick={() => setMobileMenuOpen(true)}
+              sx={{
+                display: { xs: "inline-flex", md: "none" },
+                width: 36,
+                height: 36,
+                borderRadius: "8px",
+                border: `1px solid ${divider}`,
+                color: textMuted,
+                "&:hover": { borderColor: accent, color: accent },
+              }}
+            >
+              <MenuRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
 
             <Tooltip title="Cart" arrow>
               <IconButton
@@ -341,7 +375,7 @@ export default function LandingPage() {
                   sx={{
                     "& .MuiBadge-badge": {
                       bgcolor: accent,
-                      color: "#0F1A2A",
+                      color: "#111111",
                       fontWeight: 700,
                       minWidth: 16,
                       height: 16,
@@ -375,6 +409,55 @@ export default function LandingPage() {
             </Tooltip>
           </Box>
         </Toolbar>
+
+        <Drawer
+          anchor="left"
+          open={mobileMenuOpen}
+          onClose={closeMobileMenu}
+          PaperProps={{
+            sx: {
+              width: 270,
+              bgcolor: isDark ? "#000000" : "#F8F6F1",
+              borderRight: `1px solid ${divider}`,
+              pt: 1,
+            },
+          }}
+        >
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <Typography
+              sx={{
+                fontWeight: 800,
+                fontSize: "0.85rem",
+                letterSpacing: "0.12em",
+                color: textPrimary,
+              }}
+            >
+              MENU
+            </Typography>
+          </Box>
+          <List sx={{ px: 1.2, pt: 0.4 }}>
+            <ListItemButton
+              component={Link}
+              href="/shop"
+              onClick={closeMobileMenu}
+              sx={{
+                color: textMuted,
+                borderRadius: "10px",
+                px: 1.25,
+                py: 1,
+                "&:hover": {
+                  color: textPrimary,
+                  bgcolor: isDark ? alpha("#FFFFFF", 0.04) : alpha("#111111", 0.04),
+                },
+              }}
+            >
+              <ListItemText
+                primary="Shop"
+                primaryTypographyProps={{ fontWeight: 600, fontSize: "0.9rem" }}
+              />
+            </ListItemButton>
+          </List>
+        </Drawer>
       </AppBar>
 
       {/* ─── Hero Slider ────────────────────────────────────────── */}
@@ -425,7 +508,7 @@ export default function LandingPage() {
                 sx={{
                   position: "absolute",
                   inset: 0,
-                  background: "linear-gradient(180deg, rgba(6,12,20,0.22) 0%, rgba(6,12,20,0.6) 60%, rgba(6,12,20,0.92) 100%)",
+                  background: "linear-gradient(180deg, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0.92) 100%)",
                 }}
               />
             </Box>
@@ -558,9 +641,9 @@ export default function LandingPage() {
                   borderRadius: "6px",
                   border: `1px solid ${alpha("#FFFFFF", 0.36)}`,
                   color: "#FFFFFF",
-                  bgcolor: alpha("#060C14", 0.28),
+                  bgcolor: alpha("#000000", 0.28),
                   backdropFilter: "blur(4px)",
-                  "&:hover": { borderColor: accent, color: accent, bgcolor: alpha("#060C14", 0.5) },
+                  "&:hover": { borderColor: accent, color: accent, bgcolor: alpha("#000000", 0.5) },
                 }}
               >
                 <ArrowBackIosNewRoundedIcon sx={{ fontSize: 14 }} />
@@ -574,9 +657,9 @@ export default function LandingPage() {
                   borderRadius: "6px",
                   border: `1px solid ${alpha("#FFFFFF", 0.36)}`,
                   color: "#FFFFFF",
-                  bgcolor: alpha("#060C14", 0.28),
+                  bgcolor: alpha("#000000", 0.28),
                   backdropFilter: "blur(4px)",
-                  "&:hover": { borderColor: accent, color: accent, bgcolor: alpha("#060C14", 0.5) },
+                  "&:hover": { borderColor: accent, color: accent, bgcolor: alpha("#000000", 0.5) },
                 }}
               >
                 <ArrowForwardIosRoundedIcon sx={{ fontSize: 14 }} />
@@ -675,7 +758,7 @@ export default function LandingPage() {
                     borderRadius: "16px",
                     overflow: "hidden",
                     aspectRatio: "3 / 4",
-                    bgcolor: isDark ? alpha("#0D1825", 0.8) : alpha("#E4DDD4", 0.6),
+                    bgcolor: isDark ? alpha("#06120a", 0.9) : alpha("#E4DDD4", 0.6),
                   }}
                 >
                   <Skeleton variant="rectangular" height="100%" />
@@ -700,7 +783,7 @@ export default function LandingPage() {
                       display: "flex",
                       alignItems: "flex-end",
                       p: { xs: 2.4, md: 2.8 },
-                      border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#0F1A2A", 0.08)}`,
+                      border: `1px solid ${isDark ? alpha("#FFFFFF", 0.08) : alpha("#111111", 0.08)}`,
                       cursor: "pointer",
                       textDecoration: "none",
                       transition: "transform 380ms var(--ease), box-shadow 380ms var(--ease), border-color 300ms var(--ease)",
@@ -708,7 +791,7 @@ export default function LandingPage() {
                         content: '""',
                         position: "absolute",
                         inset: 0,
-                        background: "linear-gradient(180deg, rgba(6,12,20,0.04) 20%, rgba(6,12,20,0.42) 60%, rgba(6,12,20,0.92) 100%)",
+                        background: "linear-gradient(180deg, rgba(0,0,0,0.04) 20%, rgba(0,0,0,0.42) 60%, rgba(0,0,0,0.92) 100%)",
                         zIndex: 1,
                       },
                       "& .cat-media": {
@@ -754,7 +837,7 @@ export default function LandingPage() {
                         px: 0.9,
                         py: 0.3,
                         backdropFilter: "blur(3px)",
-                        bgcolor: alpha("#060C14", 0.22),
+                        bgcolor: alpha("#000000", 0.22),
                       }}
                     >
                       {orderLabel}
@@ -790,7 +873,7 @@ export default function LandingPage() {
                           px: 1.2,
                           py: 0.4,
                           backdropFilter: "blur(3px)",
-                          bgcolor: alpha("#060C14", 0.26),
+                          bgcolor: alpha("#000000", 0.26),
                         }}
                       >
                         Explore
@@ -803,7 +886,7 @@ export default function LandingPage() {
       </Container>
 
       {/* ─── Top Selling Products ──────────────────────────────── */}
-      <Box sx={{ bgcolor: isDark ? alpha("#0A1422", 0.6) : alpha("#EDE9E2", 0.5), borderTop: `1px solid ${divider}`, borderBottom: `1px solid ${divider}` }}>
+      <Box sx={{ background: isDark ? "linear-gradient(135deg, #000000 0%, #05110a 50%, #000000 100%)" : alpha("#EDE9E2", 0.5), borderTop: `1px solid ${divider}`, borderBottom: `1px solid ${divider}` }}>
         <Container maxWidth="lg" sx={{ py: { xs: 9, md: 12 } }}>
           {/* Header */}
           <Box sx={{ mb: { xs: 4, md: 5 } }}>
@@ -854,7 +937,7 @@ export default function LandingPage() {
                       borderRadius: "12px",
                       overflow: "hidden",
                       minHeight: 170,
-                      bgcolor: isDark ? alpha("#0D1825", 0.8) : alpha("#E4DDD4", 0.5),
+                      bgcolor: isDark ? alpha("#06120a", 0.9) : alpha("#E4DDD4", 0.5),
                     }}
                   >
                     <Skeleton variant="rectangular" height={170} />
@@ -884,13 +967,13 @@ export default function LandingPage() {
                         isolation: "isolate",
                         display: "flex",
                         alignItems: "flex-end",
-                        border: `1px solid ${isDark ? alpha("#FFFFFF", 0.1) : alpha("#0F1A2A", 0.08)}`,
+                        border: `1px solid ${isDark ? alpha("#FFFFFF", 0.1) : alpha("#111111", 0.08)}`,
                         "&::before": {
                           content: '""',
                           position: "absolute",
                           inset: 0,
                           zIndex: 1,
-                          background: "linear-gradient(180deg, rgba(6,12,20,0.1) 20%, rgba(6,12,20,0.56) 58%, rgba(6,12,20,0.92) 100%)",
+                          background: "linear-gradient(180deg, rgba(0,0,0,0.1) 20%, rgba(0,0,0,0.56) 58%, rgba(0,0,0,0.92) 100%)",
                         },
                       }}
                     >
@@ -918,7 +1001,7 @@ export default function LandingPage() {
                           fontSize: "0.68rem",
                           letterSpacing: "0.06em",
                           color: accent,
-                          bgcolor: alpha("#060C14", 0.62),
+                          bgcolor: alpha("#000000", 0.62),
                           border: `1px solid ${alpha(accent, 0.38)}`,
                           borderRadius: "4px",
                           px: 0.9,
