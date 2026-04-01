@@ -95,5 +95,7 @@ router.put(
   websiteCtrl.updateWebsiteSettings
 );
 router.post('/website/hero-image', upload.single('image'), websiteCtrl.uploadHeroImage);
+router.post('/website/gallery-image', upload.single('image'), websiteCtrl.uploadGalleryImage);
+router.delete('/website/gallery-image/:imageId', websiteCtrl.deleteGalleryImage);
 
 module.exports = router;

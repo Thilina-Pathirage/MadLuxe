@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
   Button,
   Card,
   CardContent,
+  Chip,
   CircularProgress,
   FormControlLabel,
   IconButton,
   Snackbar,
   Switch,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -21,10 +23,12 @@ import {
   IconPhoto,
   IconPlus,
   IconTrash,
+  IconUpload,
+  IconX,
 } from "@tabler/icons-react";
 import PageContainer from "@/app/portal/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
-import { api, type ImageAsset } from "@/lib/api";
+import { api, type ImageAsset, type WebsiteGalleryImage } from "@/lib/api";
 import { normalizeVariantImageUrl } from "@/utils/variantImage";
 
 const MAX_SLIDES = 6;
@@ -78,6 +82,14 @@ export default function ManageWebsitePage() {
   const [snackMsg, setSnackMsg] = useState("");
   const [snackSeverity, setSnackSeverity] = useState<"success" | "error">("success");
 
+  // Gallery state
+  const [galleryImages, setGalleryImages] = useState<WebsiteGalleryImage[]>([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryUploadProgress, setGalleryUploadProgress] = useState<string[]>([]);
+  const [deletingGalleryId, setDeletingGalleryId] = useState<string | null>(null);
+  const [galleryDragOver, setGalleryDragOver] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
   const loadSettings = async () => {
     setLoading(true);
     try {
@@ -98,6 +110,7 @@ export default function ManageWebsitePage() {
       setSlides(resolvedSlides);
       setHeroAutoSlide(resolvedAutoSlide);
       setInitialState(serializeSettings(resolvedSlides, resolvedAutoSlide));
+      setGalleryImages(response.data?.galleryImages ?? []);
     } catch (err) {
       setSnackSeverity("error");
       setSnackMsg(err instanceof Error ? err.message : "Failed to load website settings.");
@@ -111,7 +124,7 @@ export default function ManageWebsitePage() {
   };
 
   useEffect(() => {
-    loadSettings();
+    void loadSettings();
   }, []);
 
   const isDirty = useMemo(
@@ -264,6 +277,75 @@ export default function ManageWebsitePage() {
       setSlides(restored);
     } catch {
       // Keep current form state if parsing fails.
+    }
+  };
+
+  // ── Gallery handlers ──────────────────────────────────────────────────────
+
+  const uploadGalleryFiles = async (files: File[]) => {
+    const valid = files.filter((f) => {
+      if (!ALLOWED_IMAGE_TYPES.includes(f.type)) return false;
+      if (f.size > MAX_FILE_SIZE) return false;
+      return true;
+    });
+
+    if (valid.length === 0) {
+      setSnackSeverity("error");
+      setSnackMsg("No valid images selected (PNG, JPG, WebP under 5 MB).");
+      return;
+    }
+
+    setGalleryUploading(true);
+    setGalleryUploadProgress(valid.map((f) => f.name));
+
+    let successCount = 0;
+    for (const file of valid) {
+      try {
+        const res = await api.uploadWebsiteGalleryImage(file);
+        setGalleryImages((prev) => [...prev, res.data]);
+        successCount++;
+      } catch {
+        // Continue with remaining files
+      }
+    }
+
+    setGalleryUploading(false);
+    setGalleryUploadProgress([]);
+
+    if (successCount > 0) {
+      setSnackSeverity("success");
+      setSnackMsg(`${successCount} image${successCount > 1 ? "s" : ""} added to gallery.`);
+    } else {
+      setSnackSeverity("error");
+      setSnackMsg("Gallery upload failed.");
+    }
+  };
+
+  const handleGalleryFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length > 0) void uploadGalleryFiles(files);
+    e.target.value = "";
+  };
+
+  const handleGalleryDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setGalleryDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) void uploadGalleryFiles(files);
+  };
+
+  const handleGalleryDelete = async (imageId: string) => {
+    setDeletingGalleryId(imageId);
+    try {
+      await api.deleteWebsiteGalleryImage(imageId);
+      setGalleryImages((prev) => prev.filter((img) => img._id !== imageId));
+      setSnackSeverity("success");
+      setSnackMsg("Gallery image removed.");
+    } catch (err) {
+      setSnackSeverity("error");
+      setSnackMsg(err instanceof Error ? err.message : "Failed to delete gallery image.");
+    } finally {
+      setDeletingGalleryId(null);
     }
   };
 
@@ -463,6 +545,158 @@ export default function ManageWebsitePage() {
         >
           {saving ? "Saving..." : "Save Changes"}
         </Button>
+      </Box>
+
+      {/* ── Gallery Images ─────────────────────────────────────────────── */}
+      <Box sx={{ mt: 5 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            Gallery Images
+          </Typography>
+          <Chip
+            label={galleryImages.length}
+            size="small"
+            color="primary"
+            variant="outlined"
+          />
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+          These images are displayed in the <strong>Full Sets</strong> gallery section on the landing page. Upload as many as you like — images are saved immediately.
+        </Typography>
+
+        {/* Drop zone */}
+        <Box
+          onDragOver={(e) => { e.preventDefault(); setGalleryDragOver(true); }}
+          onDragLeave={() => setGalleryDragOver(false)}
+          onDrop={handleGalleryDrop}
+          onClick={() => galleryInputRef.current?.click()}
+          sx={{
+            border: "2px dashed",
+            borderColor: galleryDragOver ? "primary.main" : "divider",
+            borderRadius: "12px",
+            bgcolor: galleryDragOver ? "primary.lighter" : "background.default",
+            p: { xs: 3, md: 4 },
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 1,
+            cursor: galleryUploading ? "default" : "pointer",
+            transition: "all 0.15s ease",
+            mb: 3,
+            "&:hover": galleryUploading ? {} : {
+              borderColor: "primary.main",
+              bgcolor: "primary.lighter",
+            },
+          }}
+        >
+          <input
+            ref={galleryInputRef}
+            hidden
+            type="file"
+            multiple
+            accept="image/png,image/jpeg,image/webp"
+            onChange={handleGalleryFileInput}
+          />
+          {galleryUploading ? (
+            <>
+              <CircularProgress size={28} />
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Uploading {galleryUploadProgress.length} image{galleryUploadProgress.length > 1 ? "s" : ""}…
+              </Typography>
+            </>
+          ) : (
+            <>
+              <IconUpload size={28} stroke={1.5} color="var(--mui-palette-text-disabled, #9e9e9e)" />
+              <Typography variant="body2" fontWeight={600}>
+                Drag & drop images here, or click to browse
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                PNG, JPG or WebP · max 5 MB each · multiple files allowed
+              </Typography>
+            </>
+          )}
+        </Box>
+
+        {/* Gallery grid */}
+        {galleryImages.length > 0 && (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "repeat(2, 1fr)",
+                sm: "repeat(3, 1fr)",
+                md: "repeat(4, 1fr)",
+                lg: "repeat(5, 1fr)",
+              },
+              gap: 1.5,
+            }}
+          >
+            {galleryImages.map((img) => {
+              const url = normalizeVariantImageUrl(img.url);
+              const isDeleting = deletingGalleryId === img._id;
+
+              return (
+                <Box
+                  key={img._id}
+                  sx={{
+                    position: "relative",
+                    aspectRatio: "1 / 1",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    bgcolor: "grey.100",
+                    "&:hover .gallery-delete-btn": { opacity: 1 },
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={url ?? ""}
+                    alt={img.filename}
+                    sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+                  {isDeleting && (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "grid",
+                        placeItems: "center",
+                        bgcolor: "rgba(0,0,0,0.45)",
+                      }}
+                    >
+                      <CircularProgress size={24} sx={{ color: "#fff" }} />
+                    </Box>
+                  )}
+                  <Tooltip title="Remove image">
+                    <IconButton
+                      className="gallery-delete-btn"
+                      size="small"
+                      disabled={isDeleting}
+                      onClick={() => void handleGalleryDelete(img._id)}
+                      sx={{
+                        position: "absolute",
+                        top: 6,
+                        right: 6,
+                        opacity: 0,
+                        transition: "opacity 0.15s",
+                        bgcolor: "rgba(0,0,0,0.55)",
+                        color: "#fff",
+                        "&:hover": { bgcolor: "error.main" },
+                      }}
+                    >
+                      <IconX size={14} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              );
+            })}
+          </Box>
+        )}
+
+        {galleryImages.length === 0 && !loading && (
+          <Typography variant="body2" color="text.disabled" sx={{ textAlign: "center", py: 3 }}>
+            No gallery images yet. Upload some above to get started.
+          </Typography>
+        )}
       </Box>
 
       <Snackbar

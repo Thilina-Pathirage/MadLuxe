@@ -7,18 +7,18 @@ import {
   Select, MenuItem, Collapse, Snackbar, Alert, Pagination, Tooltip,
   CircularProgress, TextField, InputAdornment,
 } from "@mui/material";
-import { IconChevronDown, IconChevronUp, IconX, IconDownload, IconFileInvoice, IconTrash, IconCheck, IconSearch } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconX, IconFileInvoice, IconTrash, IconCheck, IconSearch } from "@tabler/icons-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import PageContainer from "@/app/portal/components/container/PageContainer";
 import PageHeader from "@/components/madlaxue/shared/PageHeader";
 import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
 import ConfirmDialog from "@/components/madlaxue/shared/ConfirmDialog";
-import ExportSnackbar from "@/components/madlaxue/shared/ExportSnackbar";
 import OrderBillDialog from "@/components/madlaxue/shared/OrderBillDialog";
 import AppDatePicker from "@/components/madlaxue/shared/AppDatePicker";
 import { useGeneralSettings } from "@/context/GeneralSettingsContext";
-import { api, Order } from "@/lib/api";
+import { api, Order, Customer } from "@/lib/api";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 
 const PER_PAGE = 25;
@@ -27,40 +27,50 @@ const STATUS_COLOR: Record<string, "success" | "warning" | "error" | "default"> 
   Completed: "success", Pending: "warning", Cancelled: "error", Deleted: "default",
 };
 
-export default function AllOrdersPage() {
+export default function CustomerOrdersPage() {
+  const params = useParams<{ id: string }>();
+  const customerId = String(params?.id ?? "");
   const { formatBusinessDate, formatCurrency } = useGeneralSettings();
-  const [orders, setOrders]         = useState<Order[]>([]);
-  const [total, setTotal]           = useState(0);
-  const [loading, setLoading]       = useState(true);
-  const [fromDate, setFromDate]     = useState("");
-  const [toDate, setToDate]         = useState("");
-  const [statusFilter, setStatus]   = useState("All");
-  const [couponFilter, setCoupon]   = useState("All");
+
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [statusFilter, setStatus] = useState("All");
+  const [couponFilter, setCoupon] = useState("All");
   const [paymentFilter, setPayment] = useState("All");
-  const [search, setSearch]         = useState("");
-  const [expanded, setExpanded]     = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Order | null>(null);
-  const [viewOrder, setViewOrder]   = useState<Order | null>(null);
-  const [snackMsg, setSnackMsg]     = useState("");
-  const [exportOpen, setExportOpen] = useState(false);
-  const [page, setPage]             = useState(1);
+  const [viewOrder, setViewOrder] = useState<Order | null>(null);
+  const [snackMsg, setSnackMsg] = useState("");
+  const [page, setPage] = useState(1);
 
   const fetchOrders = useCallback(() => {
+    if (!customerId) return;
     setLoading(true);
     const params: Record<string, string> = { page: String(page), limit: String(PER_PAGE) };
     if (statusFilter !== "All") params.status = statusFilter;
     if (couponFilter === "Yes") params.couponApplied = "true";
     if (fromDate) params.dateFrom = fromDate;
-    if (toDate)   params.dateTo   = toDate;
+    if (toDate) params.dateTo = toDate;
     if (paymentFilter !== "All") params.paymentMethod = paymentFilter;
     if (search.trim()) params.search = search.trim();
 
-    api.getOrders(params)
-      .then((res: any) => { setOrders(res.data ?? []); setTotal(res.total ?? 0); })
-      .catch(() => {})
+    api.getCustomerOrders(customerId, params)
+      .then((res) => {
+        setOrders(res.data ?? []);
+        setTotal(res.total ?? 0);
+        setCustomer(res.customer ?? null);
+      })
+      .catch((err: any) => {
+        setSnackMsg(err?.message ?? "Failed to fetch customer orders.");
+      })
       .finally(() => setLoading(false));
-  }, [page, statusFilter, couponFilter, paymentFilter, fromDate, toDate, search]);
+  }, [customerId, page, statusFilter, couponFilter, paymentFilter, fromDate, toDate, search]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -98,27 +108,22 @@ export default function AllOrdersPage() {
   };
 
   return (
-    <PageContainer title="All Orders" description="Order management">
+    <PageContainer title="Customer Orders" description="Order management by customer">
       <PageHeader
-        title="All Orders"
-        subtitle={`${total} orders`}
+        title={customer ? `${customer.name} - Orders` : "Customer Orders"}
+        subtitle={customer ? `${customer.email} • ${total} orders` : `${total} orders`}
         actions={
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Button variant="outlined" size="small" startIcon={<IconDownload size={15} />}
-              onClick={() => setExportOpen(true)}>Export CSV</Button>
-            <Button variant="contained" size="small" component={Link} href="/portal/orders/new-order">
-              + New Order
-            </Button>
-          </Box>
+          <Button variant="outlined" size="small" component={Link} href="/portal/orders/customers">
+            Back to Customers
+          </Button>
         }
       />
 
-      {/* Filters */}
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center" }}>
             <AppDatePicker label="From" value={fromDate} onChange={(v) => handleFilter(() => setFromDate(v))} sx={{ width: 160 }} />
-            <AppDatePicker label="To"   value={toDate}   onChange={(v) => handleFilter(() => setToDate(v))}   sx={{ width: 160 }} />
+            <AppDatePicker label="To" value={toDate} onChange={(v) => handleFilter(() => setToDate(v))} sx={{ width: 160 }} />
             <Select value={statusFilter} size="small" sx={{ minWidth: 130 }}
               onChange={(e) => handleFilter(() => setStatus(e.target.value))}>
               {["All", "Completed", "Pending", "Cancelled", "Deleted"].map((s) =>
@@ -137,11 +142,11 @@ export default function AllOrdersPage() {
               <MenuItem value="BankTransfer">Bank Transfer</MenuItem>
             </Select>
             <TextField
-              placeholder="Search: Order ID, name, phone, email"
+              placeholder="Search order ID, name, phone"
               value={search}
               onChange={(e) => handleFilter(() => setSearch(e.target.value))}
               size="small"
-              sx={{ minWidth: 280 }}
+              sx={{ minWidth: 260 }}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -156,7 +161,6 @@ export default function AllOrdersPage() {
         </CardContent>
       </Card>
 
-      {/* Table */}
       <Card>
         <TableContainer>
           <Table size="small">
@@ -199,11 +203,6 @@ export default function AllOrdersPage() {
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>{o.customerName}</Typography>
                       <Typography variant="caption" color="text.secondary">{o.customerPhone}</Typography>
-                      {!!o.customer && !!o.customerOrderNumber && (
-                        <Typography variant="caption" display="block" sx={{ color: "primary.main", fontWeight: 600 }}>
-                          Customer order #{o.customerOrderNumber}
-                        </Typography>
-                      )}
                     </TableCell>
                     <TableCell align="center">
                       <Chip label={o.items.length} size="small" sx={{ bgcolor: "grey.200", fontWeight: 600, minWidth: 32 }} />
@@ -297,40 +296,40 @@ export default function AllOrdersPage() {
                                 const itemProfit = (item.lineFinal ?? item.lineTotal) - batchCost * item.qty;
                                 const imageUrl = getPrimaryImageUrl(item.variant);
                                 return (
-                                <TableRow key={idx} sx={{ "&:last-child td": { border: 0 } }}>
-                                  <TableCell sx={{ bgcolor: "transparent" }}>
-                                    {imageUrl ? (
-                                      <VariantImage
-                                        src={imageUrl}
-                                        alt={item.variantLabel}
-                                        width={32}
-                                        height={32}
-                                        sx={{ width: 32, height: 32, objectFit: "cover", borderRadius: "8px" }}
-                                      />
-                                    ) : (
-                                      <ImagePlaceholder width={32} height={32} />
-                                    )}
-                                  </TableCell>
-                                  <TableCell sx={{ bgcolor: "transparent" }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.variantLabel}</Typography>
-                                  </TableCell>
-                                  <TableCell align="right" sx={{ bgcolor: "transparent" }}>
-                                    <Typography variant="body2">{item.qty}</Typography>
-                                  </TableCell>
-                                  <TableCell align="right" sx={{ bgcolor: "transparent" }}>
-                                    <Typography variant="body2">{formatCurrency(item.unitPrice)}</Typography>
-                                  </TableCell>
-                                  <TableCell align="right" sx={{ bgcolor: "transparent" }}>
-                                    <Tooltip title={`Profit: ${formatCurrency(itemProfit)}`}>
-                                      <Typography variant="body2" color="text.secondary">
-                                        {formatCurrency(batchCost)}
-                                      </Typography>
-                                    </Tooltip>
-                                  </TableCell>
-                                  <TableCell align="right" sx={{ bgcolor: "transparent" }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(item.lineFinal ?? item.lineTotal)}</Typography>
-                                  </TableCell>
-                                </TableRow>
+                                  <TableRow key={idx} sx={{ "&:last-child td": { border: 0 } }}>
+                                    <TableCell sx={{ bgcolor: "transparent" }}>
+                                      {imageUrl ? (
+                                        <VariantImage
+                                          src={imageUrl}
+                                          alt={item.variantLabel}
+                                          width={32}
+                                          height={32}
+                                          sx={{ width: 32, height: 32, objectFit: "cover", borderRadius: "8px" }}
+                                        />
+                                      ) : (
+                                        <ImagePlaceholder width={32} height={32} />
+                                      )}
+                                    </TableCell>
+                                    <TableCell sx={{ bgcolor: "transparent" }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.variantLabel}</Typography>
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ bgcolor: "transparent" }}>
+                                      <Typography variant="body2">{item.qty}</Typography>
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ bgcolor: "transparent" }}>
+                                      <Typography variant="body2">{formatCurrency(item.unitPrice)}</Typography>
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ bgcolor: "transparent" }}>
+                                      <Tooltip title={`Profit: ${formatCurrency(itemProfit)}`}>
+                                        <Typography variant="body2" color="text.secondary">
+                                          {formatCurrency(batchCost)}
+                                        </Typography>
+                                      </Tooltip>
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ bgcolor: "transparent" }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(item.lineFinal ?? item.lineTotal)}</Typography>
+                                    </TableCell>
+                                  </TableRow>
                                 );
                               })}
                             </TableBody>
@@ -382,7 +381,6 @@ export default function AllOrdersPage() {
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
         <Alert severity="info" variant="filled" onClose={() => setSnackMsg("")}>{snackMsg}</Alert>
       </Snackbar>
-      <ExportSnackbar open={exportOpen} onClose={() => setExportOpen(false)} />
 
       {viewOrder && (
         <OrderBillDialog

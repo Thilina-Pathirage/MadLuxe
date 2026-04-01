@@ -15,8 +15,9 @@ import ImagePlaceholder from "@/components/madlaxue/shared/ImagePlaceholder";
 import VariantImage from "@/components/madlaxue/shared/VariantImage";
 import OrderBillDialog from "@/components/madlaxue/shared/OrderBillDialog";
 import { useGeneralSettings } from "@/context/GeneralSettingsContext";
-import { api, OrderPriority, OrderWithPriority, StockMovement } from "@/lib/api";
+import { api, publicApi, OrderPriority, OrderWithPriority, StockMovement } from "@/lib/api";
 import { getCurrencyOption } from "@/lib/generalSettings";
+import { SRI_LANKA_PROVINCES } from "@/lib/sriLankaGeo";
 import { getPrimaryImageUrl } from "@/utils/variantImage";
 
 // FIFO price calculation — mirrors backend allocation logic
@@ -97,9 +98,11 @@ export default function NewOrderPage() {
   const [custPhone, setCustPhone] = useState("");
   const [custSecondaryPhone, setCustSecondaryPhone] = useState("");
   const [custAddress, setCustAddress] = useState("");
+  const [custProvince, setCustProvince] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [secondaryPhoneError, setSecondaryPhoneError] = useState("");
   const [addressError, setAddressError] = useState("");
+  const [provinceError, setProvinceError] = useState("");
 
   // Dropdown data
   const [categories, setCategories]   = useState<any[]>([]);
@@ -144,9 +147,10 @@ export default function NewOrderPage() {
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "BankTransfer">("BankTransfer");
   const [orderPriority, setOrderPriority] = useState<OrderPriority>("Normal");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("Delivery");
-  const [deliveryFee, setDeliveryFee]     = useState(settings.defaultDeliveryFee);
-  const [deliveryFeeInput, setDeliveryFeeInput] = useState(String(settings.defaultDeliveryFee));
-  const [deliveryFeeError, setDeliveryFeeError] = useState("");
+  const [deliveryFee, setDeliveryFee]     = useState(0);
+  const [totalWeightGrams, setTotalWeightGrams] = useState(0);
+  const [deliveryQuoteLoading, setDeliveryQuoteLoading] = useState(false);
+  const [deliveryQuoteError, setDeliveryQuoteError] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [snackMsg, setSnackMsg]     = useState("");
@@ -160,12 +164,58 @@ export default function NewOrderPage() {
   }, []);
 
   useEffect(() => {
-    if (deliveryMethod !== "Delivery") return;
-    if (deliveryFeeInput.trim() !== "" && Number(deliveryFeeInput) !== 300) return;
+    if (deliveryMethod !== "Delivery") {
+      setDeliveryFee(0);
+      setTotalWeightGrams(0);
+      setDeliveryQuoteError("");
+      setDeliveryQuoteLoading(false);
+      return;
+    }
 
-    setDeliveryFee(settings.defaultDeliveryFee);
-    setDeliveryFeeInput(settings.defaultDeliveryFee > 0 ? String(settings.defaultDeliveryFee) : "");
-  }, [deliveryFeeInput, deliveryMethod, settings.defaultDeliveryFee]);
+    if (!lines.length) {
+      setDeliveryFee(0);
+      setTotalWeightGrams(0);
+      setDeliveryQuoteError("");
+      setDeliveryQuoteLoading(false);
+      return;
+    }
+
+    if (!custProvince) {
+      setDeliveryFee(0);
+      setTotalWeightGrams(0);
+      setDeliveryQuoteError("Select province to calculate delivery fee.");
+      setDeliveryQuoteLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setDeliveryQuoteLoading(true);
+
+    publicApi
+      .quoteDelivery({
+        customerProvince: custProvince,
+        items: lines.map((line) => ({ variantId: line.variantId, qty: line.qty })),
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setDeliveryFee(Math.max(0, Number(res.data.deliveryFee || 0)));
+        setTotalWeightGrams(Math.max(0, Math.round(Number(res.data.totalWeightGrams || 0))));
+        setDeliveryQuoteError("");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setDeliveryFee(0);
+        setTotalWeightGrams(0);
+        setDeliveryQuoteError(err instanceof Error ? err.message : "Unable to calculate delivery fee.");
+      })
+      .finally(() => {
+        if (!cancelled) setDeliveryQuoteLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [custProvince, deliveryMethod, lines]);
 
   // Load product types when category changes
   useEffect(() => {
@@ -361,6 +411,19 @@ export default function NewOrderPage() {
     return false;
   };
 
+  const ensureProvinceIsValid = () => {
+    if (deliveryMethod !== "Delivery") {
+      setProvinceError("");
+      return true;
+    }
+    if (custProvince) {
+      setProvinceError("");
+      return true;
+    }
+    setProvinceError("Province is required for delivery.");
+    return false;
+  };
+
   const handleApplyCoupon = async () => {
     setCouponValidating(true);
     try {
@@ -383,40 +446,10 @@ export default function NewOrderPage() {
 
   const handleDeliveryMethodChange = (method: DeliveryMethod) => {
     setDeliveryMethod(method);
-    setDeliveryFeeError("");
     if (method === "StorePickup") {
-      setDeliveryFee(0);
-      setDeliveryFeeInput("");
-      return;
+      setProvinceError("");
+      setDeliveryQuoteError("");
     }
-
-    const parsed = Number(deliveryFeeInput);
-    const hasCurrentFee = deliveryFeeInput.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
-    if (hasCurrentFee) {
-      setDeliveryFee(parsed);
-      return;
-    }
-
-    setDeliveryFee(settings.defaultDeliveryFee);
-    setDeliveryFeeInput(settings.defaultDeliveryFee > 0 ? String(settings.defaultDeliveryFee) : "");
-  };
-
-  const handleDeliveryFeeChange = (value: string) => {
-    if (!DECIMAL_PATTERN.test(value)) {
-      setDeliveryFeeError("Only numeric values are allowed.");
-      return;
-    }
-
-    setDeliveryFeeError("");
-    setDeliveryFeeInput(value);
-    if (value === "") {
-      setDeliveryFee(0);
-      return;
-    }
-
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return;
-    setDeliveryFee(Math.max(0, parsed));
   };
 
   const handleAddQtyChange = (value: string) => {
@@ -472,12 +505,23 @@ export default function NewOrderPage() {
       setSnackMsg("Customer address is required.");
       return;
     }
+    if (!ensureProvinceIsValid()) {
+      setSnackSeverity("error");
+      setSnackMsg("Please select province for delivery.");
+      return;
+    }
+    if (deliveryMethod === "Delivery" && deliveryQuoteError && deliveryFee <= 0) {
+      setSnackSeverity("error");
+      setSnackMsg("Unable to calculate delivery fee. Enter a delivery fee manually or check province/items.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res: any = await api.createOrder({
         customerName: custName || undefined,
         customerPhone: custPhone ? `+94${custPhone}` : undefined,
         customerAddress: custAddress.trim(),
+        customerProvince: custProvince || undefined,
         customerSecondaryPhone: custSecondaryPhone ? `+94${custSecondaryPhone}` : undefined,
         items: lines.map((l) => ({
           variantId: l.variantId,
@@ -508,18 +552,21 @@ export default function NewOrderPage() {
       setCustPhone("");
       setCustSecondaryPhone("");
       setCustAddress("");
+      setCustProvince("");
       setPhoneError("");
       setSecondaryPhoneError("");
       setAddressError("");
+      setProvinceError("");
       setCouponInput(""); setAppliedCoupon(""); setCouponDiscount(0);
       setCouponSuccess(""); setCouponError("");
       setManualDiscount(0); setManualDiscountType("fixed");
       setPaymentMethod("BankTransfer");
       setOrderPriority("Normal");
       setDeliveryMethod("Delivery");
-      setDeliveryFee(settings.defaultDeliveryFee);
-      setDeliveryFeeInput(settings.defaultDeliveryFee > 0 ? String(settings.defaultDeliveryFee) : "");
-      setDeliveryFeeError("");
+      setDeliveryFee(0);
+      setTotalWeightGrams(0);
+      setDeliveryQuoteError("");
+      setDeliveryQuoteLoading(false);
     } catch (err: any) {
       setSnackSeverity("error");
       setSnackMsg(err.message ?? "Failed to create order.");
@@ -590,6 +637,26 @@ export default function NewOrderPage() {
                     }}
                   />
                 </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    select
+                    label="Province"
+                    value={custProvince}
+                    size="small"
+                    fullWidth
+                    required={deliveryMethod === "Delivery"}
+                    error={!!provinceError}
+                    helperText={provinceError || "Required for delivery fee calculation"}
+                    onChange={(e) => {
+                      setCustProvince(e.target.value);
+                      if (provinceError) setProvinceError("");
+                    }}
+                  >
+                    {SRI_LANKA_PROVINCES.map((province) => (
+                      <MenuItem key={province} value={province}>{province}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
               </Grid>
             </CardContent>
           </Card>
@@ -629,14 +696,30 @@ export default function NewOrderPage() {
                 </Grid>
                 {deliveryMethod === "Delivery" && (
                   <Grid size={{ xs: 12, sm: 3 }}>
-                    <TextField label="Delivery Fee" value={deliveryFeeInput} size="small" fullWidth
-                      error={!!deliveryFeeError}
-                      helperText={deliveryFeeError}
-                      onChange={(e) => handleDeliveryFeeChange(e.target.value)}
+                    <TextField
+                      label="Delivery Fee"
+                      value={deliveryFee}
+                      type="number"
+                      size="small"
+                      fullWidth
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        if (!Number.isFinite(next)) {
+                          setDeliveryFee(0);
+                          return;
+                        }
+                        setDeliveryFee(Math.max(0, next));
+                      }}
                       slotProps={{
                         input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> },
-                        htmlInput: { inputMode: "decimal" },
-                      }} />
+                        htmlInput: { min: 0, step: 0.01, inputMode: "decimal" },
+                      }}
+                      helperText={
+                        deliveryQuoteLoading
+                          ? "Calculating from province + weight..."
+                          : (deliveryQuoteError || `Auto-calculated from province + weight. Approx. ${(totalWeightGrams / 1000).toFixed(2)} kg`)
+                      }
+                    />
                   </Grid>
                 )}
               </Grid>

@@ -124,6 +124,7 @@ app.get('/api/public/product-types', require('./controllers/publicShopController
 app.get('/api/public/settings', require('./controllers/publicShopController').getPublicSettings);
 app.post('/api/public/delivery/quote', require('./controllers/publicShopController').quotePublicDelivery);
 app.get('/api/public/top-selling', require('./controllers/publicShopController').getPublicTopSelling);
+app.get('/api/public/gallery', require('./controllers/websiteSettingsController').getPublicGallery);
 
 // Public order creation — optionally links to customer account
 const { optionalCustomerAuth } = require('./middleware/customerProtect');
@@ -144,6 +145,7 @@ app.use('/api/variants', require('./routes/variants'));
 app.use('/api/images', require('./routes/images'));
 app.use('/api/stock-movements', require('./routes/stockMovements'));
 app.use('/api/orders', require('./routes/orders'));
+app.use('/api/customers', require('./routes/customers'));
 app.use('/api/coupons', require('./routes/coupons'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/settings', require('./routes/settings'));

@@ -45,6 +45,7 @@ const Menuitems = [
     children: [
       { id: uniqueId(), title: "All Orders", href: "/portal/orders/all-orders" },
       { id: uniqueId(), title: "New Order",  href: "/portal/orders/new-order"  },
+      { id: uniqueId(), title: "Customers",  href: "/portal/orders/customers"  },
     ],
   },
   {

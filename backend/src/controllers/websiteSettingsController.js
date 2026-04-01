@@ -97,6 +97,78 @@ const uploadHeroImage = async (req, res, next) => {
   }
 };
 
+const uploadGalleryImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return error(res, 'No file uploaded', 400);
+    }
+
+    const settings = await getOrCreateWebsiteSettings();
+
+    const stored = await uploadBuffer({
+      buffer: req.file.buffer,
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
+      metadata: {
+        entity: 'website-gallery',
+        uploadedBy: req.user?.id,
+      },
+    });
+
+    const image = {
+      fileId: stored.fileId,
+      filename: stored.filename,
+      contentType: stored.contentType,
+      size: stored.size,
+      url: buildImageUrl(stored.fileId),
+    };
+
+    settings.galleryImages.push(image);
+    await settings.save();
+
+    const added = settings.galleryImages[settings.galleryImages.length - 1];
+    return success(res, { data: added.toObject() }, 'Gallery image uploaded', 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const deleteGalleryImage = async (req, res, next) => {
+  try {
+    const { imageId } = req.params;
+    const settings = await getOrCreateWebsiteSettings();
+
+    const imgDoc = settings.galleryImages.id(imageId);
+    if (!imgDoc) {
+      return error(res, 'Gallery image not found', 404);
+    }
+
+    const fileId = imgDoc.fileId;
+    imgDoc.deleteOne();
+    await settings.save();
+
+    await deleteFile(fileId);
+
+    return success(res, {}, 'Gallery image deleted');
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getPublicGallery = async (req, res, next) => {
+  try {
+    const settings = await getOrCreateWebsiteSettings();
+    const galleryImages = (settings.galleryImages || []).map((img) => ({
+      id: String(img._id),
+      url: img.url,
+      filename: img.filename,
+    }));
+    return success(res, { data: { galleryImages } });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const getPublicBanners = async (req, res, next) => {
   try {
     const settings = await getOrCreateWebsiteSettings();
@@ -125,5 +197,8 @@ module.exports = {
   getWebsiteSettings,
   updateWebsiteSettings,
   uploadHeroImage,
+  uploadGalleryImage,
+  deleteGalleryImage,
+  getPublicGallery,
   getPublicBanners,
 };

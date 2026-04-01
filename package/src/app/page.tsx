@@ -145,6 +145,7 @@ export default function LandingPage() {
   const [loadingTopSelling, setLoadingTopSelling] = useState(true);
   const [topSellingError, setTopSellingError] = useState("");
 
+  const [galleryImages, setGalleryImages] = useState<Array<{ id: string; url: string; filename: string }>>([]);
   const [banners, setBanners] = useState<Banner[]>(FALLBACK_BANNERS);
   const [heroAutoSlideEnabled, setHeroAutoSlideEnabled] = useState(true);
   const [activeSlide, setActiveSlide] = useState(0);
@@ -216,7 +217,19 @@ export default function LandingPage() {
       }
     };
 
-    void Promise.all([loadCategories(), loadBanners(), loadTopSellingProducts()]);
+    const loadGallery = async () => {
+      try {
+        const payload = await publicApi.getGallery();
+        if (!cancelled) {
+          const images = Array.isArray(payload?.data?.galleryImages) ? payload.data.galleryImages : [];
+          setGalleryImages(images);
+        }
+      } catch {
+        // Gallery is optional — fail silently
+      }
+    };
+
+    void Promise.all([loadCategories(), loadBanners(), loadTopSellingProducts(), loadGallery()]);
     return () => { cancelled = true; };
   }, []);
 
@@ -1118,6 +1131,165 @@ export default function LandingPage() {
           </Box>
         ))}
       </Container>
+
+      {/* ─── Gallery Section ─── */}
+      {galleryImages.length > 0 && (
+        <>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300;1,400&display=swap"
+          />
+          <Box
+            component="section"
+            sx={{
+              py: { xs: 8, md: 12 },
+              position: "relative",
+              background: isDark
+                ? `radial-gradient(ellipse at 22% 58%, ${alpha(accent, 0.05)} 0%, transparent 54%)`
+                : `radial-gradient(ellipse at 78% 42%, ${alpha(accent, 0.06)} 0%, transparent 54%)`,
+            }}
+          >
+            <Container maxWidth="xl">
+              {/* ── Section header ── */}
+              <Box sx={{ mb: { xs: 5, md: 7 }, textAlign: "center" }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 2,
+                    maxWidth: 320,
+                    mx: "auto",
+                    mb: 2.5,
+                  }}
+                >
+                  <Box sx={{ flex: 1, height: "1px", bgcolor: alpha(accent, 0.38) }} />
+                  <Typography
+                    sx={{
+                      fontSize: "0.6rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.24em",
+                      textTransform: "uppercase",
+                      color: accent,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Full Sets
+                  </Typography>
+                  <Box sx={{ flex: 1, height: "1px", bgcolor: alpha(accent, 0.38) }} />
+                </Box>
+
+                <Typography
+                  sx={{
+                    fontFamily:
+                      "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
+                    fontSize: { xs: "2.5rem", sm: "3rem", md: "3.9rem" },
+                    fontWeight: 300,
+                    fontStyle: "italic",
+                    letterSpacing: "-0.02em",
+                    lineHeight: 1.1,
+                    color: textPrimary,
+                  }}
+                >
+                  Every Look, Complete.
+                </Typography>
+              </Box>
+
+              {/* ── Asymmetric grid ── */}
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "repeat(2, 1fr)",
+                    md: "repeat(3, 1fr)",
+                  },
+                  gridAutoRows: {
+                    xs: "clamp(130px, 26vw, 210px)",
+                    md: "clamp(170px, 20vw, 270px)",
+                  },
+                  gap: { xs: "6px", md: "10px" },
+                }}
+              >
+                {galleryImages.map((img, index) => {
+                  const url = normalizeVariantImageUrl(img.url);
+                  const isFeatured = index === 0;
+
+                  return (
+                    <Box
+                      key={img.id}
+                      sx={{
+                        gridColumn: isFeatured
+                          ? { xs: "span 2", md: "span 2" }
+                          : "span 1",
+                        gridRow: isFeatured ? "span 2" : "span 1",
+                        position: "relative",
+                        overflow: "hidden",
+                        borderRadius: "3px",
+                        bgcolor: isDark
+                          ? alpha("#ffffff", 0.04)
+                          : alpha("#000000", 0.05),
+                        "& .gal-img": {
+                          transition:
+                            "transform 0.65s cubic-bezier(0.22, 0.61, 0.36, 1)",
+                        },
+                        "& .gal-veil": {
+                          opacity: 0,
+                          transition: "opacity 0.4s ease",
+                        },
+                        "&:hover .gal-img": {
+                          transform: "scale(1.042)",
+                        },
+                        "&:hover .gal-veil": {
+                          opacity: 1,
+                        },
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        className="gal-img"
+                        src={url ?? ""}
+                        alt={img.filename}
+                        loading={isFeatured ? "eager" : "lazy"}
+                        sx={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+
+                      {/* Hover veil */}
+                      <Box
+                        className="gal-veil"
+                        sx={{
+                          position: "absolute",
+                          inset: 0,
+                          background:
+                            "linear-gradient(155deg, rgba(0,0,0,0.07) 0%, rgba(0,0,0,0.30) 100%)",
+                          pointerEvents: "none",
+                        }}
+                      />
+
+                      {/* Gold inset frame on hero tile */}
+                      {isFeatured && (
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            inset: 0,
+                            border: `1px solid ${alpha(accent, 0.24)}`,
+                            borderRadius: "3px",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Container>
+          </Box>
+        </>
+      )}
 
       {/* ─── CTA Section ────────────────────────────────────────── */}
       <Box

@@ -1,4 +1,6 @@
+const mongoose = require('mongoose');
 const Order = require('../models/Order');
+const Customer = require('../models/Customer');
 const Variant = require('../models/Variant');
 const StockMovement = require('../models/StockMovement');
 const CouponCode = require('../models/CouponCode');
@@ -6,6 +8,7 @@ const generateOrderRef = require('../utils/generateOrderRef');
 const { success, error } = require('../utils/apiResponse');
 
 const round2 = (n) => Math.round(n * 100) / 100;
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const POPULATE_ITEMS = {
   path: 'items.variant',
@@ -17,14 +20,62 @@ const POPULATE_ITEMS = {
   select: 'sku size images weightGrams',
 };
 
+const appendCustomerOrderNumbers = async (orders) => {
+  const customerIds = Array.from(
+    new Set(
+      orders
+        .map((order) => order.customer)
+        .filter(Boolean)
+        .map((customerId) => String(customerId))
+    )
+  );
+
+  if (customerIds.length === 0) {
+    return orders.map((order) => ({
+      ...(typeof order.toObject === 'function' ? order.toObject() : order),
+      customerOrderNumber: null,
+    }));
+  }
+
+  const customerOrders = await Order.find({ customer: { $in: customerIds } })
+    .select('_id customer createdAt')
+    .sort({ createdAt: 1, _id: 1 })
+    .lean();
+
+  const rankByOrderId = new Map();
+  const counters = new Map();
+
+  for (const item of customerOrders) {
+    const customerKey = String(item.customer);
+    const current = (counters.get(customerKey) || 0) + 1;
+    counters.set(customerKey, current);
+    rankByOrderId.set(String(item._id), current);
+  }
+
+  return orders.map((order) => {
+    const json = typeof order.toObject === 'function' ? order.toObject() : order;
+    const hasCustomer = !!json.customer;
+    return {
+      ...json,
+      customerOrderNumber: hasCustomer ? rankByOrderId.get(String(json._id)) || null : null,
+    };
+  });
+};
+
 const getAll = async (req, res, next) => {
   try {
-    const { status, couponApplied, dateFrom, dateTo, search, page = 1, limit = 25 } = req.query;
+    const { status, couponApplied, dateFrom, dateTo, search, page = 1, limit = 25, customerId } = req.query;
     const filter = {};
 
     if (status) filter.status = status;
     if (couponApplied === 'true') filter.couponCode = { $ne: '' };
     if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
+    if (customerId) {
+      if (!mongoose.Types.ObjectId.isValid(String(customerId))) {
+        return error(res, 'Invalid customer id', 400);
+      }
+      filter.customer = customerId;
+    }
     if (dateFrom || dateTo) {
       filter.createdAt = {};
       if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
@@ -34,11 +85,18 @@ const getAll = async (req, res, next) => {
         filter.createdAt.$lte = to;
       }
     }
-    if (search) {
+    if (search && String(search).trim()) {
+      const searchRegex = new RegExp(escapeRegExp(String(search).trim()), 'i');
+      const customers = await Customer.find({ email: searchRegex }).select('_id').lean();
+      const customerIds = customers.map((customer) => customer._id);
       filter.$or = [
-        { orderRef: new RegExp(search, 'i') },
-        { customerName: new RegExp(search, 'i') },
+        { orderRef: searchRegex },
+        { customerName: searchRegex },
+        { customerPhone: searchRegex },
       ];
+      if (customerIds.length > 0) {
+        filter.$or.push({ customer: { $in: customerIds } });
+      }
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -52,8 +110,10 @@ const getAll = async (req, res, next) => {
       Order.countDocuments(filter),
     ]);
 
+    const enrichedData = await appendCustomerOrderNumbers(data);
+
     return success(res, {
-      data,
+      data: enrichedData,
       total,
       page: parseInt(page),
       totalPages: Math.ceil(total / parseInt(limit)),
@@ -82,6 +142,7 @@ const create = async (req, res, next) => {
       customerName,
       customerPhone,
       customerAddress,
+      customerProvince = '',
       customerSecondaryPhone,
       items: rawItems,
       couponCode,
@@ -292,6 +353,7 @@ const create = async (req, res, next) => {
       customerName: customerName || 'Walk-in Customer',
       customerPhone: customerPhone || '',
       customerAddress: String(customerAddress).trim(),
+      customerProvince: String(customerProvince || '').trim(),
       customerSecondaryPhone: customerSecondaryPhone || '',
       items: orderItems,
       subtotal,

@@ -135,6 +135,8 @@ export interface Order {
   _id: string;
   orderRef: string;
   customerName: string;
+  customer?: string | { _id: string } | null;
+  customerOrderNumber?: number | null;
   customerPhone: string;
   customerAddress: string;
   customerSecondaryPhone?: string;
@@ -154,6 +156,22 @@ export interface Order {
   createdAt: string;
 }
 
+export interface Customer {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address?: string;
+  province?: string;
+  district?: string;
+  city?: string;
+  createdAt: string;
+}
+
+export interface CustomerListItem extends Pick<Customer, '_id' | 'name' | 'email' | 'phone' | 'createdAt'> {
+  orderCount: number;
+}
+
 export type OrderPriority = 'Normal' | 'Urgent' | 'Top Urgent';
 
 export type OrderWithPriority = Order & {
@@ -171,6 +189,7 @@ export interface CreateOrderInput {
   customerName?: string;
   customerPhone?: string;
   customerAddress: string;
+  customerProvince?: string;
   customerSecondaryPhone?: string;
   items: CreateOrderItem[];
   couponCode?: string;
@@ -246,11 +265,20 @@ export interface WebsiteHeroSlide {
   sortOrder: number;
 }
 
+export interface WebsiteGalleryImage extends ImageAsset {
+  _id: string;
+}
+
 export interface WebsiteSettings {
   _id?: string;
   key?: string;
   heroAutoSlide: boolean;
   heroSlides: WebsiteHeroSlide[];
+  galleryImages: WebsiteGalleryImage[];
+}
+
+export interface CustomerOrdersResponse extends PaginatedResponse<Order> {
+  customer: Customer;
 }
 
 export interface ManualFinanceEntry {
@@ -409,6 +437,8 @@ export const publicApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  getGallery: () =>
+    publicRequest<ApiResponse<{ galleryImages: Array<{ id: string; url: string; filename: string }> }>>('/public/gallery'),
 };
 
 // ─── API Methods ──────────────────────────────────────────────────────────
@@ -507,6 +537,12 @@ export const api = {
   deleteOrder: (id: string) =>
     request<ApiResponse<Order>>(`/orders/${id}`, { method: 'DELETE' }),
 
+  // Customers
+  getCustomers: (params?: Record<string, string>) =>
+    request<PaginatedResponse<CustomerListItem>>('/customers?' + new URLSearchParams(params ?? {})),
+  getCustomerOrders: (customerId: string, params?: Record<string, string>) =>
+    request<CustomerOrdersResponse>(`/customers/${customerId}/orders?` + new URLSearchParams(params ?? {})),
+
   // Coupons
   getCoupons: (params?: Record<string, string>) =>
     request<ApiResponse<unknown[]>>('/coupons?' + new URLSearchParams(params ?? {})),
@@ -571,6 +607,18 @@ export const api = {
       body: form,
     });
   },
+  uploadWebsiteGalleryImage: (file: File) => {
+    const form = new FormData();
+    form.append('image', file);
+    return request<ApiResponse<WebsiteGalleryImage>>('/settings/website/gallery-image', {
+      method: 'POST',
+      body: form,
+    });
+  },
+  deleteWebsiteGalleryImage: (imageId: string) =>
+    request<ApiResponse<Record<string, never>>>(`/settings/website/gallery-image/${imageId}`, {
+      method: 'DELETE',
+    }),
 
   // Categories
   getCategories: () => request<ApiResponse<unknown[]>>('/categories'),

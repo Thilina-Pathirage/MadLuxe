@@ -21,10 +21,22 @@ const heroSlideSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const galleryImageSchema = new mongoose.Schema(
+  {
+    fileId: { type: String, required: true },
+    filename: { type: String, required: true },
+    contentType: { type: String, required: true },
+    size: { type: Number, required: true, min: 0 },
+    url: { type: String, required: true },
+  },
+  { _id: true }
+);
+
 const websiteSettingsSchema = new mongoose.Schema(
   {
     key: { type: String, default: 'website', unique: true, immutable: true },
     heroAutoSlide: { type: Boolean, default: true },
+    galleryImages: { type: [galleryImageSchema], default: [] },
     heroSlides: {
       type: [heroSlideSchema],
       default: [
